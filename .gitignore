@@ -1,0 +1,28 @@
+.venv/
+.private/
+__pycache__/
+.pytest_cache/
+*.db
+*.env
+anweisung & zugang.txt
+zugangspasswort wunsch.txt
+node_modules/
+dist/
+artifacts/
+.tools/
+scripts/admin.py
+*.db-wal
+*.db-shm
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+known_hosts
+nas_key
+nas_known_hosts
+*.tar.gz
+*.zip
+anweisung*.txt
+zugang*.txt

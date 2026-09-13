@@ -1,0 +1,9 @@
+[Unit]
+Description=Stop JDownloader when NAS becomes unavailable
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/jdownloader-web/config.env
+ExecStart=/usr/local/sbin/jdownloader-nas-watch
+TimeoutStartSec=40
