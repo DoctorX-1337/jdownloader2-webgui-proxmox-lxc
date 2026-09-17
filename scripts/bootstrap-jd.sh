@@ -8,7 +8,7 @@ install -d /usr/local/lib/jdownloader
 install -m 755 /tmp/check-nas.py /usr/local/lib/jdownloader/check-nas.py
 test -e /opt/jdownloader/cfg || ln -s /var/lib/jdownloader/cfg /opt/jdownloader/cfg
 cat > /var/lib/jdownloader/cfg/org.jdownloader.api.RemoteAPIConfig.json <<'JSON'
-{"deprecatedapienabled":true,"deprecatedapilocalhostonly":true,"deprecatedapiport":3128,"headlessmyjdownloadermandatory":false,"externinterfaceenabled":false,"jdanywhereapienabled":false}
+{"deprecatedapienabled":true,"deprecatedapilocalhostonly":true,"deprecatedapiport":3128,"headlessmyjdownloadermandatory":false,"externinterfaceenabled":true,"externinterfacelocalhostonly":true,"jdanywhereapienabled":false}
 JSON
 cat > /var/lib/jdownloader/cfg/org.jdownloader.settings.GeneralSettings.json <<'JSON'
 {"defaultdownloadfolder":"/mnt/downloads","maxsimultanedownloads":3,"maxchunksperfile":2}

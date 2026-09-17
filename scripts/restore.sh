@@ -33,6 +33,10 @@ for file in nas_key nas_known_hosts; do
     chmod 600 "/etc/jdownloader-web/$file"
   fi
 done
+if [ -f /etc/jdownloader-web/browser-extension.token ]; then
+  chown jdweb:jdownloader /etc/jdownloader-web/browser-extension.token
+  chmod 600 /etc/jdownloader-web/browser-extension.token
+fi
 # Backups should not revive old browser sessions.
 python3 - <<'PY'
 import sqlite3

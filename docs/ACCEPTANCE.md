@@ -4,7 +4,7 @@ Geprüft am tatsächlich laufenden Proxmox-LXC 200 und mit einer isolierten Chro
 
 | Prüfung | Ergebnis |
 |---|---|
-| Backend- und NAS-Tests | 18 bestanden; zwei Deprecation-Warnungen der Testbibliotheken |
+| Backend- und NAS-Tests | 22 bestanden; zwei Deprecation-Warnungen der Testbibliotheken |
 | Produktionsbuild | TypeScript-Prüfung und Vite-Build erfolgreich |
 | Anmeldung und Abmeldung | Gewünschtes Passwort funktioniert; HttpOnly-Sitzung, Abmeldung sperrt die Sitzung |
 | CSRF und fremde Origins | Änderungen ohne gültigen CSRF-Token oder mit fremder Origin werden abgewiesen |
@@ -22,6 +22,11 @@ Geprüft am tatsächlich laufenden Proxmox-LXC 200 und mit einer isolierten Chro
 | Wiederanlauf | Original-Bind-Mount wiederhergestellt; JD, Webserver und NAS starten wieder erfolgreich |
 | Premium-Integration | 715 reale Anbieter abrufbar, Accountliste erreichbar, unbekannter Anbieter ohne Passwortecho abgewiesen |
 | Premium-Geheimnisse | Tests bestätigen POST-Übertragung ohne URL-Geheimnisse, keine Passwortrückgabe und keine Speicherung in der Web-Datenbank |
+| Browser-Erweiterungen | Deterministische Firefox- und Chromium-Pakete gebaut; Manifeste, Inhalt, Download und Erweiterungsauthentifizierung geprüft |
+| Erweiterungsschutz | Eigener Schlüssel erforderlich; Click’n’Load wird nur an den festen Loopback-Port weitergegeben; Fremdfelder und ungültige Aktionen werden verworfen |
+| Entpackpasswörter | Hinzufügen, Zählen und Entfernen getestet; API und Web-Datenbank geben das Passwort nicht zurück |
+| Click’n’Load live | Eigene Testdatei über die Erweiterungs-API an den echten Loopback-Listener übergeben, in JDownloader gefunden und wieder entfernt |
+| Automatisches Entpacken live | Passwortgeschütztes AES-ZIP vollständig geladen, automatisch entpackt und den Inhalt der Ergebnisdatei unabhängig auf dem NAS geprüft |
 | Datenbank | SQLite `integrity_check` erfolgreich |
 | Backup | Echtes Archiv erstellt; SQLite darin konsistent, Archivmodus 0600 |
 | Wiederherstellung | Derselbe gesicherte Zustand praktisch wiederhergestellt; anschließender Healthcheck erfolgreich |

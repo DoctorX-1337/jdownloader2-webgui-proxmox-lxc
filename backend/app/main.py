@@ -4,13 +4,17 @@ import json
 import logging
 import re
 import socket
+import hashlib
 import time
-from urllib.parse import urlsplit
+import httpx
+from urllib.parse import urlencode, urlsplit
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, SecretStr
 from . import auth, config
+from . import extension_auth
 from .database import db, initialize
 from .jd import JDownloader, EngineUnavailable
 from .storage import storage, OFFLINE
@@ -19,6 +23,7 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
 logger = logging.getLogger('jdweb')
 jd = JDownloader()
 current = {'nas':dict(OFFLINE), 'jdownloader':False, 'internet':False, 'version':None, 'updated':0}
+recent_cnl = {}
 
 def setting(key, default):
     with db() as connection:
@@ -70,6 +75,14 @@ async def lifespan(app):
     await jd.client.aclose()
 
 app = FastAPI(title='JDownloader Custom WebUI', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r'^(moz-extension|chrome-extension)://[A-Za-z0-9_-]+$',
+    allow_credentials=False,
+    allow_methods=['POST', 'OPTIONS'],
+    allow_headers=['Content-Type', 'X-Extension-Token'],
+    max_age=600,
+)
 
 @app.exception_handler(EngineUnavailable)
 async def engine_error(request, error):
@@ -165,9 +178,7 @@ def parse_links(value):
 class NewDownload(BaseModel):
     links: str | list[str]
 
-@app.post('/api/downloads')
-async def add_download(body:NewDownload, user=Depends(auth.session)):
-    links = parse_links(body.links)
+async def submit_links(links):
     await require_nas()
     job = await jd.call('/linkgrabberv2/addLinks', {'links':'\n'.join(links),'destinationFolder':config.DOWNLOAD_PATH,'autostart':setting('autostart',True),'autoExtract':setting('auto_extract',True),'assignJobID':True,'overwritePackagizerRules':True})
     if not isinstance(job,dict) or 'id' not in job:
@@ -176,6 +187,63 @@ async def add_download(body:NewDownload, user=Depends(auth.session)):
         connection.execute('INSERT OR REPLACE INTO jobs VALUES (?,?,?)',(str(job['id']),len(links),time.time()))
     logger.info('Downloadauftrag erstellt: %d Links',len(links))
     return {'success':True,'submitted':len(links),'job':str(job['id']),'message':f'{len(links)} Links werden analysiert. JDownloader verarbeitet sie automatisch.'}
+
+@app.post('/api/downloads')
+async def add_download(body:NewDownload, user=Depends(auth.session)):
+    return await submit_links(parse_links(body.links))
+
+@app.post('/api/extension/links')
+async def extension_links(body:NewDownload, allowed=Depends(extension_auth.require)):
+    return await submit_links(parse_links(body.links))
+
+@app.post('/api/extension/status')
+async def extension_status(allowed=Depends(extension_auth.require)):
+    return {'success':True,'message':'Browser-Erweiterung ist verbunden.'}
+
+@app.get('/api/extension/token')
+def extension_token(user=Depends(auth.session)):
+    return {'token':extension_auth.token()}
+
+@app.post('/api/extension/token/rotate')
+def rotate_extension_token(user=Depends(auth.session)):
+    return {'token':extension_auth.rotate(),'message':'Neuer Erweiterungsschlüssel erstellt. Bereits eingerichtete Browser müssen aktualisiert werden.'}
+
+class CnlRequest(BaseModel):
+    action: str = Field(pattern=r'^(add|addcrypted2)$')
+    fields: dict[str,str | list[str]]
+
+@app.post('/api/extension/cnl')
+async def click_and_load(body:CnlRequest, allowed=Depends(extension_auth.require)):
+    await require_nas()
+    permitted={'urls','crypted','jk','source','passwords','package','dir','autostart'}
+    values=[]
+    total=0
+    for key, raw in body.fields.items():
+        if key not in permitted:
+            continue
+        for value in raw if isinstance(raw,list) else [raw]:
+            if not isinstance(value,str) or any(ord(char)<9 for char in value):
+                raise HTTPException(422,'Click\'n\'Load-Daten sind ungültig.')
+            total += len(key)+len(value)
+            values.append((key,value))
+    if not values or total>2*1024*1024:
+        raise HTTPException(422,'Click\'n\'Load-Daten fehlen oder sind zu groß.')
+    digest=hashlib.sha256(json.dumps([body.action,values],ensure_ascii=False).encode()).hexdigest()
+    now=time.monotonic()
+    for key,created in list(recent_cnl.items()):
+        if now-created>30:recent_cnl.pop(key,None)
+    if digest in recent_cnl:
+        return {'success':True,'duplicate':True,'message':'Click\'n\'Load-Auftrag wurde bereits übernommen.'}
+    try:
+        async with httpx.AsyncClient(timeout=25,trust_env=False) as client:
+            encoded=urlencode(values,doseq=True).encode('utf-8')
+            response=await client.post(f'http://127.0.0.1:{config.CNL_PORT}/flash/{body.action}',content=encoded,headers={'Content-Type':'application/x-www-form-urlencoded; charset=utf-8','Referer':f'http://127.0.0.1:{config.CNL_PORT}/flashgot','User-Agent':'JDownloader2-Browser-Bridge/1.0'})
+            response.raise_for_status()
+    except httpx.HTTPError:
+        raise EngineUnavailable() from None
+    recent_cnl[digest]=now
+    logger.info('Click\'n\'Load-Auftrag an JDownloader übergeben')
+    return {'success':True,'message':'Click\'n\'Load-Auftrag wurde an JDownloader übergeben.'}
 
 @app.get('/api/downloads')
 async def downloads(user=Depends(auth.session)):
@@ -287,6 +355,55 @@ async def save_settings(body:Settings,user=Depends(auth.session)):
         for key,value in [('autostart',body.autostart),('auto_extract',body.auto_extract)]:
             connection.execute('INSERT OR REPLACE INTO settings VALUES (?,?)',(key,json.dumps(value)))
     return {'success':True}
+
+EXTRACTION_INTERFACE='org.jdownloader.extensions.extraction.ExtractionConfig'
+EXTRACTION_STORAGE='cfg/org.jdownloader.extensions.extraction.ExtractionExtension'
+
+async def extraction_passwords():
+    values=await jd.call('/config/get',EXTRACTION_INTERFACE,EXTRACTION_STORAGE,'PasswordList')
+    if values is None:
+        return []
+    if not isinstance(values,list) or any(not isinstance(value,str) for value in values):
+        raise EngineUnavailable()
+    return values
+
+@app.get('/api/settings/extraction')
+async def extraction_settings(user=Depends(auth.session)):
+    values=await extraction_passwords()
+    return {'password_count':len(values),'auto_extract':setting('auto_extract',True),'enabled':True}
+
+class ExtractionPassword(BaseModel):
+    password: SecretStr = Field(min_length=1,max_length=1024)
+
+@app.post('/api/settings/extraction/passwords')
+async def add_extraction_password(body:ExtractionPassword,user=Depends(auth.session)):
+    password=body.password.get_secret_value()
+    if '\x00' in password or '\r' in password or '\n' in password:
+        raise HTTPException(422,'Ein Entpackpasswort darf keinen Zeilenumbruch enthalten.')
+    values=await extraction_passwords()
+    if password not in values:
+        if len(values)>=500:
+            raise HTTPException(422,'Es sind bereits 500 Standardpasswörter gespeichert.')
+        if not await jd.call('/config/set',EXTRACTION_INTERFACE,EXTRACTION_STORAGE,'PasswordList',values+[password]):
+            raise EngineUnavailable()
+    logger.info('Standardpasswort für Archive an JDownloader übergeben')
+    return {'success':True,'password_count':len(values)+(password not in values),'message':'Standardpasswort wurde in JDownloader gespeichert.'}
+
+@app.delete('/api/settings/extraction/passwords')
+async def remove_extraction_password(body:ExtractionPassword,user=Depends(auth.session)):
+    password=body.password.get_secret_value()
+    values=await extraction_passwords()
+    remaining=[value for value in values if value!=password]
+    if len(remaining)!=len(values) and not await jd.call('/config/set',EXTRACTION_INTERFACE,EXTRACTION_STORAGE,'PasswordList',remaining):
+        raise EngineUnavailable()
+    return {'success':True,'password_count':len(remaining),'message':'Standardpasswort wurde entfernt.'}
+
+@app.delete('/api/settings/extraction/passwords/all')
+async def clear_extraction_passwords(user=Depends(auth.session)):
+    values=await extraction_passwords()
+    if values and not await jd.call('/config/set',EXTRACTION_INTERFACE,EXTRACTION_STORAGE,'PasswordList',[]):
+        raise EngineUnavailable()
+    return {'success':True,'password_count':0,'message':'Alle Standardpasswörter wurden aus JDownloader entfernt.'}
 
 @app.get('/api/jobs')
 def jobs(user=Depends(auth.session)):

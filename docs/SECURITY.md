@@ -8,7 +8,7 @@ HTTP ist wie angefordert für das private LAN eingerichtet. Für verschlüsselte
 
 ## Prozesse und Ports
 
-LXC unprivilegiert. JDownloader unter UID 1000; Webdienst unter UID 1001. Beide sind eigene Benutzer, root führt nur Installation und Mountüberwachung aus. Uvicorn ist an `127.0.0.1:8000` gebunden, die lokale JDownloader-API an `127.0.0.1:3128`. JD-interne Zusatzdienste bleiben ebenfalls auf Loopback. LAN-Eingang ausschließlich Webports 80/443 aus `192.0.2.0/24`; Container-SSH ist deaktiviert.
+LXC unprivilegiert. JDownloader unter UID 1000; Webdienst unter UID 1001. Beide sind eigene Benutzer, root führt nur Installation und Mountüberwachung aus. Uvicorn ist an `127.0.0.1:8000` gebunden, die lokale JDownloader-API an `127.0.0.1:3128` und Click’n’Load an `127.0.0.1:9666`. JD-interne Zusatzdienste bleiben ebenfalls auf Loopback. LAN-Eingang ausschließlich Webports 80/443 aus `192.0.2.0/24`; Container-SSH ist deaktiviert.
 
 ## NAS
 
@@ -21,5 +21,9 @@ Der NAS-Einstellungshelfer auf Proxmox besitzt notwendige Rootrechte, ist jedoch
 URLs werden als Daten an JDownloader übergeben. Kein `shell=True`, `os.system` oder Shell-Befehl aus Web-Eingaben. NAS-Pfade werden komponentenweise validiert; Pfadtraversal, Kontrollzeichen und symbolische Zielpfade werden verworfen. CIFS-Credentials laufen über eine geschützte Datei statt Mount-Befehlsargumente. JDownloader-Requests nutzen JSON-POST; Premium-Zugangsdaten stehen nicht in URLs und nicht in der Web-Datenbank. Accountstatus liefert keine Passwörter zurück und zeigt nur kategorisierte Fehler.
 
 Die Webanwendung gibt keine Eingabewerte aus Validierungsfehlern zurück. Nginx protokolliert keine API-Zugriffe; App-Logs enthalten Statuswechsel und Auftragsanzahl, keine Zugangsdaten. JDownloader verwaltet seine Account-Konfiguration und Provider-Diagnose selbst. Seine Konfiguration und Backups grundsätzlich als geheim behandeln.
+
+Die Browser-Erweiterung besitzt einen zufälligen, vom Administrator widerrufbaren Schlüssel. Dieser erlaubt ausschließlich das Einreichen von Links und Click’n’Load-Daten; er gewährt keinen Zugriff auf Downloads, Einstellungen, Accounts oder Administratorsitzungen. Click’n’Load wird nur an den festen Loopback-Port des Containers weitergegeben. Die Erweiterung beobachtet ausschließlich POST-Ziele auf `localhost:9666` und `127.0.0.1:9666`; für die frei eingestellte Portal-Adresse fordert sie beim Speichern eine eigene, auf diesen Ursprung begrenzte Berechtigung an. Der Schlüssel liegt im Container und im lokalen Browserprofil und gehört nicht in Supportausgaben oder Git.
+
+Standardpasswörter für Archive werden direkt in JDownloaders `PasswordList` gespeichert. Die Web-API gibt ausschließlich ihre Anzahl zurück; auch Logs und die Web-Datenbank enthalten die Werte nicht. JDownloader-Konfigurationsbackups enthalten diese Liste und sind daher vertraulich.
 
 Keine Geheimnisse in Git oder Quellpaketen: ursprüngliche Anweisungen/Zugangsdateien, Passwortwunsch, `.private`, `.env`, Datenbanken und private Schlüssel sind ausgeschlossen. Test- und Browserhilfen dürfen keine Exception-Details mit ausgefüllten Passwörtern drucken.

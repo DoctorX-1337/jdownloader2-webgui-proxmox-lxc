@@ -17,6 +17,11 @@ id jdweb >/dev/null 2>&1 || useradd --system --uid 1001 --gid jdownloader --home
 install -d -m 750 -o jdweb -g jdownloader /var/lib/jdownloader-web
 install -d -m 750 -o root -g jdownloader /etc/jdownloader-web
 if [ ! -f /etc/jdownloader-web/config.env ]; then install -m 640 -o root -g jdownloader "$PROJECT/config/config.env.example" /etc/jdownloader-web/config.env; fi
+if [ ! -f /etc/jdownloader-web/browser-extension.token ]; then
+  (umask 077; python3 -c 'import secrets; print(secrets.token_urlsafe(36))' > /etc/jdownloader-web/browser-extension.token)
+fi
+chown jdweb:jdownloader /etc/jdownloader-web/browser-extension.token
+chmod 600 /etc/jdownloader-web/browser-extension.token
 install -d /usr/local/lib/jdownloader
 install -m 755 "$PROJECT/scripts/check-nas.py" /usr/local/lib/jdownloader/check-nas.py
 timeout 12 runuser -u jdownloader -- python3 /usr/local/lib/jdownloader/check-nas.py
@@ -34,9 +39,11 @@ elif ! (cd "$PROJECT/backend"; "$PROJECT/venv/bin/python" -c 'from app.database 
   echo 'Ein Administrator-Hash muss mit --admin-hash-file angegeben werden. Siehe README.'
   exit 1
 fi
+python3 "$PROJECT/scripts/build-browser-extension.py"
 cd "$PROJECT/frontend"
 if [ -f package-lock.json ]; then npm ci --no-fund --no-audit; else npm install --no-fund --no-audit; fi
 npm run build
+chmod -R a+rX "$PROJECT/frontend/dist"
 install -m 644 "$PROJECT/nginx/jdownloader-web.conf" /etc/nginx/sites-available/jdownloader-web
 ln -sfn /etc/nginx/sites-available/jdownloader-web /etc/nginx/sites-enabled/jdownloader-web
 rm -f /etc/nginx/sites-enabled/default

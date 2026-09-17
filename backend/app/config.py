@@ -15,3 +15,5 @@ NAS_ADMIN_KNOWN_HOSTS = os.getenv('NAS_ADMIN_KNOWN_HOSTS','/etc/jdownloader-web/
 SESSION_TIMEOUT = int(os.getenv('SESSION_TIMEOUT', '86400'))
 COOKIE_SECURE = os.getenv('COOKIE_SECURE', 'false').lower() == 'true'
 NAS_CHECK = os.getenv('NAS_CHECK', '/usr/local/lib/jdownloader/check-nas.py')
+EXTENSION_TOKEN_FILE = Path(os.getenv('EXTENSION_TOKEN_FILE', '/etc/jdownloader-web/browser-extension.token'))
+CNL_PORT = int(os.getenv('CNL_PORT', '9666'))

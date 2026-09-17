@@ -2,7 +2,7 @@
 
 Lokales Downloadportal für eine native, headless betriebene JDownloader-2-Installation in einem unprivilegierten Proxmox-LXC. Vorhandene Mockups, Logos und Favicons bilden die Gestaltung; Downloadstatus und Aktionen stammen aus der echten JDownloader-API.
 
-Alle IP-Adressen, NAS-Namen und Containerkennungen in dieser ?ffentlichen Fassung sind neutrale Beispielwerte. Vor der Installation m?ssen sie an die eigene Umgebung angepasst werden; produktive Infrastrukturangaben und Zugangsdaten werden nicht ver?ffentlicht. Die Beispiele verwenden das Dokumentationsnetz `192.0.2.0/24`.
+Alle IP-Adressen, NAS-Namen und Containerkennungen in dieser öffentlichen Fassung sind neutrale Beispielwerte. Vor der Installation müssen sie an die eigene Umgebung angepasst werden; produktive Infrastrukturangaben und Zugangsdaten werden nicht veröffentlicht. Die Beispiele verwenden das Dokumentationsnetz `192.0.2.0/24`.
 
 ## Beispielkonfiguration
 
@@ -33,6 +33,20 @@ Ubuntu 26.04 ist in der Vorlagenliste vorhanden, wird aber vom installierten Pro
 Unter **Einstellungen → NAS-Zielpfad** ist die vollständige NAS-Adresse frei änderbar, zum Beispiel `\\anderes-nas\Freigabe\Unterordner`. Benutzername und NAS-Passwort sind optional; ohne neue Anmeldung bleibt der gespeicherte NAS-Zugang erhalten. Die neue Freigabe wird zuerst gemountet und mit den tatsächlichen Container-UIDs auf Schreibbarkeit geprüft. Fehlende Unterordner werden angelegt. Danach wird Container 200 kurz neu gestartet. Bestehende Dateien bleiben am bisherigen Ort; unterbrochene Downloads können am neuen Ziel von vorn beginnen.
 
 Unter **Einstellungen → Premium-Accounts** lassen sich unterstützte Downloadanbieter auswählen und Accounts hinzufügen, prüfen, deaktivieren oder entfernen. Manche Anbieter benötigen einen API-Schlüssel. Die Hosterliste und Accountprüfung kommen direkt von JDownloader. Das Webportal speichert keine Premium-Passwörter in SQLite und gibt sie nicht zurück.
+
+Unter **Einstellungen → Browser-Erweiterung** stehen Pakete für Firefox und Chromium bereit. Die Erweiterung fängt Click’n’Load-Aufrufe an `127.0.0.1:9666` beziehungsweise `localhost:9666` ab und leitet sie mit einem eigenen Erweiterungsschlüssel an dieses Portal weiter. Normale Links und markierte Linklisten können zusätzlich über das Browser-Kontextmenü gesendet werden. Beim Speichern fragt der Browser einmal nach Zugriff auf die frei eingestellte Portal-Adresse. Liegt die von Mozilla signierte XPI vor, startet **In Firefox installieren** den Firefox-Installationsdialog direkt aus der WebGUI. Bis dahin steht das Entwicklerpaket für `about:debugging` bereit. Chromium lädt das entpackte Paket im Entwicklermodus; eine private Website darf Erweiterungen dort nicht direkt installieren. Der Erweiterungsschlüssel kann im Portal kopiert oder erneuert werden.
+
+Firefox Release und Beta akzeptieren nur von Mozilla signierte Erweiterungen. Die Signierung zur Selbstverteilung benötigt einmalig AMO-API-Zugangsdaten und speichert diese nicht:
+
+```bash
+AMO_JWT_ISSUER='...' AMO_JWT_SECRET='...' bash scripts/sign-firefox-extension.sh
+```
+
+Die erzeugte XPI kommt nach `browser-extension/signed/`, wird beim nächsten Build in die WebGUI übernommen und von Nginx als `application/x-xpinstall` ausgeliefert. Danach genügt in Firefox ein Klick in der WebGUI plus die Bestätigung des Browserdialogs.
+
+Unter **Einstellungen → Entpackpasswörter** lassen sich Standardpasswörter einzeln hinzufügen und entfernen. Das Portal zeigt nur die Anzahl an; die Werte bleiben in JDownloaders eigener geschützter Konfiguration. Ist **Neue Archive automatisch entpacken** aktiviert, probiert JDownloader diese Liste bei neu hinzugefügten ZIP-, RAR- und 7z-Aufträgen automatisch. Der Ablauf wurde mit einem verschlüsselten Testarchiv bis zur inhaltlich geprüften Datei auf dem NAS verifiziert.
+
+Ein erfolgreich übergebener Link kann trotzdem beim Anbieter auf ein Captcha oder einen kostenlosen Downloadslot warten. Das Portal zeigt diesen Zustand deutlich an. Für unbeaufsichtigte Downloads bei solchen Anbietern ist ein gültiger Premium-Account erforderlich; aktuell ist kein Account vorinstalliert.
 
 ## Architektur
 
@@ -89,6 +103,7 @@ Der Installer aktualisiert den Container, installiert die Laufzeit, richtet Benu
 | `/opt/jdownloader-web` | Quellcode, Python-venv, gebaute Weboberfläche |
 | `/etc/jdownloader-web/config.env` | Konfiguration, Modus 0640 |
 | `/etc/jdownloader-web/nas_key` | eingeschränkter NAS-Verwaltungsschlüssel, Modus 0600 |
+| `/etc/jdownloader-web/browser-extension.token` | eigener Zugriffsschlüssel der Browser-Erweiterung, Modus 0600 |
 | `/var/lib/jdownloader-web/app.db` | Administrator-Hash, Sitzungen, Einstellungen, Historie |
 | `jdownloader.service` | native Headless-Engine, automatischer Neustart einschließlich Updates |
 | `jdownloader-web.service` | FastAPI/Uvicorn als Benutzer jdweb |

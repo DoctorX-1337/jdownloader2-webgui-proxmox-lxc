@@ -24,5 +24,6 @@ nas_key
 nas_known_hosts
 *.tar.gz
 *.zip
+browser-extension/signed/
 anweisung*.txt
 zugang*.txt

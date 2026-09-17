@@ -2,7 +2,7 @@ import asyncio
 import json
 import pytest
 from fastapi.testclient import TestClient
-from backend.app import main, database, auth
+from backend.app import main, database, auth, extension_auth
 
 class ClientStub:
     async def aclose(self): pass
@@ -25,6 +25,10 @@ def client(tmp_path,monkeypatch):
     monkeypatch.setattr(main,'monitor',monitor)
     async def online():return {'online':True,'writable':True,'free':10**12,'total':2*10**12}
     monkeypatch.setattr(main,'storage',online)
+    token_file=tmp_path/'extension.token'
+    token_file.write_text('test-extension-token-1234567890x',encoding='ascii')
+    monkeypatch.setattr(extension_auth,'EXTENSION_TOKEN_FILE',token_file)
+    main.recent_cnl.clear()
     with TestClient(main.app) as client:
         with database.db() as db:
             db.execute('INSERT INTO users VALUES (?,?)',('admin',auth.hasher.hash('test-only-password-123')))
@@ -138,3 +142,86 @@ def test_zero_speed_limit_disables_limit_without_setting_invalid_zero(client):
     assert response.status_code==200
     assert not any(call[1][2]=='DownloadSpeedLimit' for call in engine.calls)
     assert ('/config/set',('org.jdownloader.settings.GeneralSettings',None,'DownloadSpeedLimitEnabled',False)) in engine.calls
+
+def test_extension_token_is_required_and_links_reach_engine(client):
+    browser,engine=client
+    assert browser.post('/api/extension/status').status_code==401
+    headers={'X-Extension-Token':'test-extension-token-1234567890x'}
+    assert browser.post('/api/extension/status',headers=headers).status_code==200
+    response=browser.post('/api/extension/links',headers=headers,json={'links':'https://example.org/from-extension.zip'})
+    assert response.status_code==200
+    assert engine.calls[0][0]=='/linkgrabberv2/addLinks'
+    assert engine.calls[0][1][0]['links']=='https://example.org/from-extension.zip'
+    assert 'test-extension-token' not in response.text
+
+def test_extension_preflight_allows_browser_extensions_only(client):
+    browser,_=client
+    allowed={
+        'Origin':'moz-extension://01234567-89ab-cdef-0123-456789abcdef',
+        'Access-Control-Request-Method':'POST',
+        'Access-Control-Request-Headers':'content-type,x-extension-token',
+    }
+    response=browser.options('/api/extension/status',headers=allowed)
+    assert response.status_code==200
+    assert response.headers['access-control-allow-origin']==allowed['Origin']
+    response=browser.options('/api/extension/status',headers={**allowed,'Origin':'https://attacker.example'})
+    assert response.status_code==400
+    assert 'access-control-allow-origin' not in response.headers
+
+def test_extension_token_can_only_be_read_by_signed_in_admin(client):
+    browser,engine=client
+    assert browser.get('/api/extension/token').status_code==401
+    signed_in(browser)
+    response=browser.get('/api/extension/token')
+    assert response.status_code==200
+    assert response.json()['token']=='test-extension-token-1234567890x'
+
+def test_click_and_load_forwards_only_allowed_fields_to_loopback(client,monkeypatch):
+    browser,engine=client
+    captured={}
+    class Response:
+        def raise_for_status(self):pass
+    class HttpClient:
+        def __init__(self,*args,**kwargs):pass
+        async def __aenter__(self):return self
+        async def __aexit__(self,*args):pass
+        async def post(self,url,**kwargs):
+            captured.update(url=url,**kwargs)
+            return Response()
+    monkeypatch.setattr(main.httpx,'AsyncClient',HttpClient)
+    headers={'X-Extension-Token':'test-extension-token-1234567890x'}
+    response=browser.post('/api/extension/cnl',headers=headers,json={'action':'add','fields':{'urls':'https://example.org/cnl.zip','source':'https://example.org/page','ignored':'private'}})
+    assert response.status_code==200
+    assert captured['url']=='http://127.0.0.1:9666/flash/add'
+    assert b'urls=https%3A%2F%2Fexample.org%2Fcnl.zip' in captured['content']
+    assert b'ignored' not in captured['content']
+    assert 'X-Extension-Token' not in captured['headers']
+    assert captured['headers']['Referer']=='http://127.0.0.1:9666/flashgot'
+    assert browser.post('/api/extension/cnl',headers=headers,json={'action':'remove','fields':{'urls':'https://example.org'}}).status_code==422
+
+def test_extraction_passwords_are_counted_but_never_returned_or_saved(client,monkeypatch):
+    browser,engine=client
+    headers=signed_in(browser)
+    values=[]
+    async def call(path,*params):
+        engine.calls.append((path,params))
+        if path=='/config/get':return list(values)
+        if path=='/config/set':
+            values[:]=params[-1]
+            return True
+        return True
+    monkeypatch.setattr(engine,'call',call)
+    secret='archive-test-secret-9247'
+    response=browser.post('/api/settings/extraction/passwords',headers=headers,json={'password':secret})
+    assert response.status_code==200
+    assert response.json()['password_count']==1
+    assert secret not in response.text
+    response=browser.get('/api/settings/extraction')
+    assert response.json()['password_count']==1
+    assert secret not in response.text
+    with database.db() as connection:
+        assert secret not in '\n'.join(row[0] for row in connection.execute('SELECT value FROM settings'))
+    response=browser.request('DELETE','/api/settings/extraction/passwords',headers=headers,json={'password':secret})
+    assert response.status_code==200
+    assert response.json()['password_count']==0
+    assert not values

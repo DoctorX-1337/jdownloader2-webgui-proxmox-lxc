@@ -36,9 +36,21 @@ pct exec 200 -- curl -fsS http://127.0.0.1:3128/jd/version
 
 Beim ersten Start lädt der Updater Komponenten und startet die Engine mehrfach neu. Der Service nutzt `-norestart` mit `Restart=always`, damit systemd Neustarts und Updates überwacht. Ein vollständiges JRE wird benötigt, auch bei headless Ausführung.
 
+## Download wartet auf Captcha
+
+Der Status „Captcha erforderlich“ bedeutet, dass Portal, NAS und JDownloader funktionieren, der Downloadanbieter aber eine interaktive Freigabe verlangt. Unter **Einstellungen → Premium-Accounts** einen gültigen Account für die angezeigte Anbieter-Domain hinterlegen und anschließend den Download erneut versuchen. Ohne Premium-Account kann ein Headless-Download bei diesem Anbieter auf dem Captcha-Slot stehen bleiben.
+
 ## Link nicht verfügbar
 
-LinkGrabber zeigt den echten Anbieterstatus. Eine erfolgreiche Übergabe bedeutet, dass JDownloader den Auftrag erhalten hat; sie bestätigt nicht, dass jeder Anbieter einen Download ermöglicht. Offline-Links werden nicht als fertige Downloads dargestellt. Captchas und Browser-Challenges gehören nicht zur ersten Version.
+LinkGrabber zeigt den echten Anbieterstatus. Eine erfolgreiche Übergabe bedeutet, dass JDownloader den Auftrag erhalten hat; sie bestätigt nicht, dass jeder Anbieter einen Download ermöglicht. Offline-Links werden nicht als fertige Downloads dargestellt.
+
+## Browser-Erweiterung
+
+Im Portal unter **Einstellungen → Browser-Erweiterung** in Firefox **In Firefox installieren** wählen und den Browserdialog bestätigen. Ist die Schaltfläche noch nicht verfügbar, fehlt die Mozilla-signierte XPI; bis zur Signierung kann das Entwicklerpaket temporär über `about:debugging` geladen werden. Portal-Adresse `http://jdownloader2` und den kopierten Erweiterungsschlüssel speichern und Firefox den einmalig angefragten Zugriff auf diese Adresse erlauben. Die Verbindung wird dabei ohne Download getestet. Bei `NetworkError when attempting to fetch resource` zuerst das aktuelle Paket neu laden; Version 1.0.2 fordert die benötigte Portalberechtigung an und unterbindet das automatische HTTPS-Upgrade für das lokale HTTP-Portal. Nach einer Schlüsselerneuerung müssen alle Browser den neuen Wert erhalten.
+
+## Archive werden nicht entpackt
+
+Unter **Einstellungen → Downloads** muss „Neue Archive automatisch entpacken“ für den neuen Auftrag aktiv gewesen sein. Ein benötigtes Passwort unter **Entpackpasswörter** hinzufügen. Mehrteilige Archive werden erst nach vollständigem Download aller Teile entpackt. Das Portal zeigt Passwörter absichtlich nicht wieder an.
 
 ## Premium-Account
 
