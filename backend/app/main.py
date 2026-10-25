@@ -7,6 +7,7 @@ import socket
 import hashlib
 import time
 import httpx
+from typing import Literal
 from urllib.parse import urlencode, urlsplit
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -19,6 +20,7 @@ from .database import db, initialize
 from .jd import JDownloader, EngineUnavailable
 from .storage import storage, OFFLINE
 from . import dlc
+from .packages import summarize
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
 logger = logging.getLogger('jdweb')
@@ -274,11 +276,11 @@ async def click_and_load(body:CnlRequest, allowed=Depends(extension_auth.require
 
 @app.get('/api/downloads')
 async def downloads(user=Depends(auth.session)):
-    links, packages, state = await asyncio.gather(jd.downloads(),jd.call('/downloadsV2/queryPackages',{'startAt':0,'maxResults':-1}),jd.call('/downloadcontroller/getCurrentState'))
+    links, packages, state = await asyncio.gather(jd.downloads(),jd.packages(),jd.call('/downloadcontroller/getCurrentState'))
     names={str(p['uuid']):p['name'] for p in packages}
     for link in links:
         link['packageName']=names.get(link['packageUUID'],'')
-    return {'links':links,'state':state,'speed':sum(x.get('speed',0) for x in links)}
+    return {'links':links,'packages':summarize(packages,links,state),'state':state,'speed':sum(x.get('speed',0) for x in links)}
 
 @app.get('/api/downloads/active')
 async def active(user=Depends(auth.session)):
@@ -297,6 +299,23 @@ def link_id(value):
     if not value.isdecimal() or int(value)<=0 or int(value)>2**63-1:
         raise HTTPException(422,'Ungültige Download-ID.')
     return int(value)
+
+class RemoveSelection(BaseModel):
+    ids: list[str] = Field(min_length=1, max_length=2000)
+    confirmed: Literal[True]
+
+async def remove_selection(body, endpoint):
+    identifiers = list(dict.fromkeys(link_id(value) for value in body.ids))
+    await jd.call(endpoint, identifiers, [])
+    return {'success':True, 'removed':len(identifiers), 'message':f'{len(identifiers)} Listeneinträge entfernt. NAS-Dateien bleiben erhalten.'}
+
+@app.post('/api/downloads/remove')
+async def remove_download_selection(body:RemoveSelection, user=Depends(auth.session)):
+    return await remove_selection(body, '/downloadsV2/removeLinks')
+
+@app.post('/api/linkgrabber/remove')
+async def remove_grabber_selection(body:RemoveSelection, user=Depends(auth.session)):
+    return await remove_selection(body, '/linkgrabberv2/removeLinks')
 
 @app.post('/api/downloads/{id}/{action}')
 async def action(id:str, action:str, user=Depends(auth.session)):

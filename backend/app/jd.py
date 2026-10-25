@@ -1,6 +1,7 @@
 """Only this adapter talks to JDownloader's loopback API."""
 import os
 import httpx
+from .extraction import from_link as extraction_from_link
 
 class EngineUnavailable(Exception):
     pass
@@ -27,11 +28,17 @@ class JDownloader:
             raise EngineUnavailable() from None
 
     async def downloads(self):
-        query = {k: True for k in ('bytesLoaded','bytesTotal','speed','eta','status','finished','running','enabled','host','finishedDate','extractionStatus','skipped')}
+        query = {k: True for k in ('bytesLoaded','bytesTotal','speed','eta','status','advancedStatus','finished','running','enabled','host','finishedDate','extractionStatus','skipped')}
         query.update(startAt=0, maxResults=-1)
         links = await self.call('/downloadsV2/queryLinks', query)
         # IDs exceed JS's safe integer range over time; serialize as strings.
         for link in links:
+            advanced = link.pop('advancedStatus', {})
+            extraction = extraction_from_link(link, advanced)
+            if extraction:
+                link['extraction'] = extraction
+                if extraction['state'] == 'running':
+                    link['extractionStatus'] = 'RUNNING'
             link['uuid'] = str(link['uuid'])
             link['packageUUID'] = str(link.get('packageUUID', ''))
             # JDownloader omits false values from its JSON output. Preserve
@@ -39,6 +46,16 @@ class JDownloader:
             for key in ('enabled', 'finished', 'running', 'skipped'):
                 link.setdefault(key, False)
         return links
+
+    async def packages(self):
+        query = {key: True for key in ('bytesLoaded', 'bytesTotal', 'childCount', 'speed', 'eta', 'status', 'enabled', 'finished', 'running')}
+        query.update(startAt=0, maxResults=-1)
+        packages = await self.call('/downloadsV2/queryPackages', query)
+        for package in packages:
+            package['uuid'] = str(package['uuid'])
+            for key in ('finished', 'running', 'enabled'):
+                package.setdefault(key, False)
+        return packages
 
     async def grabber(self):
         links = await self.call('/linkgrabberv2/queryLinks', {'startAt':0,'maxResults':-1,'host':True,'url':True,'availability':True,'enabled':True,'advancedStatus':True,'bytesTotal':True})

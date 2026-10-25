@@ -40,6 +40,31 @@ def signed_in(client):
     assert response.status_code==200
     return {'X-CSRF-Token':response.json()['csrf']}
 
+def test_download_package_snapshot_is_read_only_and_keeps_finished_files(client,monkeypatch):
+    browser,engine=client
+    links=[{'uuid':'1','packageUUID':'9007199254740993','name':'part1.rar','bytesTotal':100,'bytesLoaded':100,'finished':True},
+           {'uuid':'2','packageUUID':'9007199254740993','name':'part2.rar','bytesTotal':900,'bytesLoaded':400,'speed':100,'running':True}]
+    packages=[{'uuid':'9007199254740993','name':'Full archive','bytesTotal':1000,'bytesLoaded':500,'speed':100,'running':True,'enabled':True}]
+    async def get_links():return links
+    async def get_packages():return packages
+    async def call(path,*params):
+        engine.calls.append((path,params))
+        assert path=='/downloadcontroller/getCurrentState'
+        return 'RUNNING'
+    monkeypatch.setattr(engine,'downloads',get_links,raising=False)
+    monkeypatch.setattr(engine,'packages',get_packages,raising=False)
+    monkeypatch.setattr(engine,'call',call)
+    signed_in(browser)
+    response=browser.get('/api/downloads')
+    assert response.status_code==200
+    snapshot=response.json()
+    row,=snapshot['packages']
+    assert row['uuid']=='9007199254740993' and row['progress']==50
+    assert row['fileCount']==2 and row['finishedCount']==1
+    assert len(snapshot['links'])==2 and snapshot['links'][0]['finished']
+    assert all(link['packageName']=='Full archive' for link in snapshot['links'])
+    assert snapshot['state']=='RUNNING'
+
 def dlc_file(name='example.dlc', marker=b'A'):
     return {'name':name,'content':base64.b64encode(marker*128).decode('ascii')}
 
@@ -61,6 +86,27 @@ def test_dlc_batch_uses_normal_download_settings_and_deduplicates(client):
     assert query['autostart'] is False and query['autoExtract'] is False
     assert query['assignJobID'] and query['overwritePackagizerRules']
     assert first['content'] not in response.text
+
+@pytest.mark.parametrize('endpoint,engine_endpoint',[
+    ('/api/linkgrabber/remove','/linkgrabberv2/removeLinks'),
+    ('/api/downloads/remove','/downloadsV2/removeLinks'),
+])
+def test_bulk_remove_requires_confirmation_and_removes_only_selected_ids(client,endpoint,engine_endpoint):
+    browser,engine=client
+    assert browser.post(endpoint,json={'ids':['1'],'confirmed':True}).status_code==401
+    headers=signed_in(browser)
+    assert browser.post(endpoint,json={'ids':['1'],'confirmed':True}).status_code==403
+    assert browser.post(endpoint,headers=headers,json={'ids':['1'],'confirmed':False}).status_code==422
+    assert not engine.calls
+    response=browser.post(endpoint,headers=headers,json={'ids':['1','9007199254740993','1'],'confirmed':True})
+    assert response.status_code==200 and response.json()['removed']==2
+    assert engine.calls==[(engine_endpoint,([1,9007199254740993],[]))]
+
+@pytest.mark.parametrize('ids',[[],['1','invalid'],['-1'],['0'],['9223372036854775808'],['1']*2001])
+def test_invalid_bulk_remove_does_not_change_any_download(client,ids):
+    browser,engine=client
+    response=browser.post('/api/downloads/remove',headers=signed_in(browser),json={'ids':ids,'confirmed':True})
+    assert response.status_code==422 and not engine.calls
 
 def test_dlc_requires_session_csrf_and_explicit_confirmation(client):
     browser,engine=client

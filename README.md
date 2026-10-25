@@ -48,11 +48,33 @@ Unter **Einstellungen → Entpackpasswörter** lassen sich Standardpasswörter e
 
 Ein erfolgreich übergebener Link kann trotzdem beim Anbieter auf ein Captcha oder einen kostenlosen Downloadslot warten. Das Portal zeigt diesen Zustand deutlich an. Für unbeaufsichtigte Downloads bei solchen Anbietern ist ein gültiger Premium-Account erforderlich; aktuell ist kein Account vorinstalliert.
 
+## Paketfortschritt und Einzeldateien
+
+Die Downloadansicht startet mit **Pakete**. Jedes JDownloader-Paket erhält eine Karte mit Gesamtfortschritt, übertragenen und gesamten Bytes, Geschwindigkeit, geschätzter Restzeit und Anzahl fertiger Dateien. **Dateien ansehen** klappt die Teil-Dateien mit ihren eigenen Ladebalken auf. Über **Einzeldateien** bleibt die bisherige Liste mit ihren Downloadaktionen erreichbar.
+
+Die Daten aktualisieren sich automatisch alle drei Sekunden. Der Gesamtfortschritt verwendet JDownloaders Paketwerte und enthält bereits abgeschlossene Teile; unterschiedliche Dateigrößen werden nach Bytes gewichtet. Ist eine Gesamtgröße noch unbekannt, erscheint ein neutraler Balken statt eines erfundenen Prozentwerts. Pausen, Entpacken und abgeschlossene Pakete haben eigene Zustände. Bei einer Verbindungsunterbrechung bleibt der letzte Stand mit einem sichtbaren Hinweis erhalten.
+
+Die Übersicht zeigt zunächst offene Pakete; **Alle** blendet abgeschlossene Pakete ein. Suche und aufklappbare Dateidetails bleiben während der Aktualisierung erhalten. Die Gruppierung folgt vorhandenen JDownloader-Paketen: Ein DLC kann mehrere Pakete erzeugen, und der ursprüngliche DLC-Dateiname lässt sich aus älteren Downloadlisten nicht zuverlässig rekonstruieren. Die Ansicht liest ausschließlich Statusdaten und verändert weder Pakete noch Downloadaufträge.
+
+Paket- und Einzeldateiansicht verwenden dieselbe Fortschrittskomponente: dunkler Track, Blau-Cyan-Türkis-Verlauf, diagonale Lichtstreifen, Shimmer, leuchtende Fortschrittskante und drei kleine Partikel. Der Prozentwert steht separat rechts; Dateigröße, echte Übertragungsgeschwindigkeit und vorhandene Restzeitwerte ergänzen die Anzeige. Die Breite folgt ausschließlich den Backendwerten. Rücksprünge, etwa nach einem Zurücksetzen, erscheinen sofort korrekt.
+
+Animationen laufen nur bei aktiven Downloads mit gemessener Geschwindigkeit über null, sichtbarer Anzeige und sichtbarem Browser-Tab. Pausierte, wartende, fehlerhafte und abgeschlossene Downloads sowie veraltete Statusdaten bleiben statisch. Fertige Downloads werden grün, Pausen gedämpft blau, Fehler dezent rot und Entpackvorgänge gelb dargestellt. `prefers-reduced-motion` schaltet Bewegung und Partikel ab. Ein gemeinsamer `IntersectionObserver` pausiert unsichtbare Effekte; zusätzliche Animationsbibliotheken oder JavaScript-Animationsschleifen werden nicht benötigt. Die bisherigen Start-, Pause-, Fortsetzen- und Entfernen-Aktionen bleiben erhalten.
+
+Der Entpackstatus steht separat unter dem Downloadbalken. JDownloaders echte `PluginProgress`-Werte liefern Prozent, verarbeitete Bytes, Gesamtgröße und Restzeit des aktuellen Archivs. Ein Download kann deshalb bereits 100 % erreicht haben, während das Entpacken beispielsweise bei 58 % steht. Mehrteilige RAR-Dateien melden denselben Entpackvorgang mehrfach; die Anzeige zählt diese Bytes nicht mehrfach. Ohne native Messwerte erscheint keine erfundene Prozentzahl. Erfolg, Passwortfehler, Prüfsummenfehler und fehlende Archivteile haben eigene Hinweise.
+
+## Mehrere Einträge auswählen und entfernen
+
+Im **LinkGrabber** und unter **Downloads → Einzeldateien** stehen Checkboxen sowie **Alle auswählen** zur Verfügung. Die Auswahl bleibt bei automatischen Aktualisierungen und beim Filtern erhalten; aus der Liste verschwundene Einträge werden aus der Auswahl entfernt. **Alle auswählen** betrifft die aktuell sichtbaren Einträge. Neu hinzukommende Links werden nicht automatisch mit ausgewählt.
+
+**Auswahl entfernen** öffnet einen Bestätigungsdialog mit Anzahl und Bereich der Auswahl. Erst **Auswahl endgültig entfernen** übergibt die ausdrücklich bestätigten IDs. Im LinkGrabber werden wartende Links entfernt; in der Downloadliste werden nur die ausgewählten Downloadaufträge beendet und entfernt. Bereits gespeicherte NAS-Dateien bleiben erhalten. Größere Auswahlen werden in Gruppen von bis zu 2000 IDs übergeben; bei einem Fehler bleiben die noch nicht entfernten Einträge zur erneuten Bestätigung ausgewählt.
+
 ## DLC-Dateien hochladen
 
 Unter **Übersicht** oder **Downloads → DLC-Dateien hochladen** lassen sich mehrere `.dlc`-Dateien gleichzeitig auswählen. Der Bestätigungsdialog zeigt Dateinamen, Größen und die Gesamtgröße. Erst **Bestätigen & übergeben** lädt die Dateien hoch und übergibt sie gemeinsam an JDownloader; **Abbrechen** verwirft die Auswahl.
 
 Es gelten maximal **20 Dateien**, **2 MB je Datei** und **10 MB insgesamt**. Identische Container im selben Auftrag werden nur einmal übergeben. JDownloader entschlüsselt die Container und verarbeitet die gefundenen Links mit denselben Einstellungen für NAS-Ziel, Autostart und Entpacken wie normale Links. Die erfolgreiche Übergabe bestätigt den Auftrag; ob Links entschlüsselt werden können und beim Anbieter verfügbar sind, zeigt anschließend JDownloader im LinkGrabber beziehungsweise unter Downloads.
+
+Eine dauerhafte DLC-Datei-Historie wird nicht geführt: Ein später erneut hochgeladener Container wird nicht anhand seines Dateihashes blockiert. Für Links, die noch in JDownloaders Downloadliste stehen, gilt dessen eigene Duplikatprüfung und die dort konfigurierte Aktion. Das Portal gleicht entfernte Downloadlinks nicht mit seiner Historie ab.
 
 Der Upload verlangt eine angemeldete Sitzung, CSRF-Schutz und eine ausdrückliche Bestätigung. Die gesamte Auswahl wird vor der Übergabe geprüft. Containerinhalte werden nicht in der Portal-Datenbank oder in dessen Logs gespeichert. Für bestehende Installationen muss neben Backend und Frontend auch die Nginx-Konfiguration aktualisiert werden: Der DLC-Endpunkt erlaubt bis zu 14 MB für die Base64-kodierte Anfrage, die übrigen Endpunkte behalten ihr bisheriges Limit. `scripts/update.sh` übernimmt diese Konfiguration.
 

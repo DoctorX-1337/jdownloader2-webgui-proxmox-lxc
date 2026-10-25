@@ -7,7 +7,10 @@ if timeout --kill-after=1 12 runuser -u jdownloader --preserve-environment -- py
     logger -t jdownloader-nas 'NAS wieder verfügbar; JDownloader gestartet.'
   fi
 else
-  systemctl stop jdownloader
+  # Record the blocked state before stopping: a busy CIFS operation can make
+  # systemctl stop exceed this watch service's timeout. Recovery must still
+  # know that it needs to start the engine after the NAS becomes healthy.
   touch /run/jdownloader-nas-blocked
+  systemctl stop jdownloader
   logger -t jdownloader-nas 'NAS nicht verfügbar; JDownloader deaktiviert.'
 fi
