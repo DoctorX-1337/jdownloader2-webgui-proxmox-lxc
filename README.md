@@ -58,6 +58,12 @@ Der Upload verlangt eine angemeldete Sitzung, CSRF-Schutz und eine ausdrücklich
 
 Technische Grundlage: [JDownloader LinkCollector API](https://github.com/mirror/jdownloader/blob/master/src/org/jdownloader/api/linkcollector/v2/LinkCollectorAPIImplV2.java), `addLinks` mit `dataURLs`.
 
+### Zugriff über einen HTTPS-Reverse-Proxy
+
+Der vorgelagerte Proxy muss den ursprünglichen `Host` einschließlich eines gegebenenfalls verwendeten Ports erhalten und `X-Forwarded-Proto` auf das tatsächliche Browser-Protokoll setzen. Seine genaue IP wird im Container unter `/etc/nginx/jdownloader-trusted-proxies.d/reverse-proxy.conf` freigegeben, zum Beispiel `192.0.2.40/32 1;`. Eine Vorlage liegt in [config/nginx-trusted-proxy.example.conf](config/nginx-trusted-proxy.example.conf). Danach `nginx -t && systemctl reload nginx` ausführen. Dieses lokale Vertrauensverzeichnis bleibt bei Updates erhalten.
+
+Nginx übernimmt die Protokollangabe ausschließlich von diesen freigegebenen Proxy-Adressen. Direkter HTTP-Zugriff bleibt möglich. Dadurch stimmen die Herkunftsprüfung der Anwendung und die öffentliche HTTPS-Adresse auch bei DLC-Uploads überein; Herkunftsprüfung und CSRF-Schutz bleiben aktiv.
+
 ## Architektur
 
 ```text

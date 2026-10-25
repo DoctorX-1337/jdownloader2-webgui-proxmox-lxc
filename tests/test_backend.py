@@ -75,6 +75,33 @@ def test_dlc_requires_session_csrf_and_explicit_confirmation(client):
         assert browser.post('/api/downloads/dlc',headers=headers,json=body).status_code==422
     assert not engine.calls
 
+def test_dlc_behind_https_proxy_requires_matching_origin_and_csrf(client):
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+    browser,engine=client
+    proxy=ProxyHeadersMiddleware(main.app,trusted_hosts=['127.0.0.1'])
+    base='https://downloads.example.org'
+    with TestClient(proxy,base_url='http://downloads.example.org',client=('127.0.0.1',12345)) as proxied:
+        forwarded={'X-Forwarded-Proto':'https','Origin':base,'Sec-Fetch-Site':'same-origin'}
+        response=proxied.post('/api/auth/login',headers=forwarded,json={'username':'admin','password':'test-only-password-123'})
+        assert response.status_code==200
+        headers={**forwarded,'X-CSRF-Token':response.json()['csrf']}
+        payload={'confirmed':True,'files':[dlc_file()]}
+        assert proxied.post('/api/downloads/dlc',headers=headers,json=payload).status_code==200
+        calls=len(engine.calls)
+        for origin in ('https://attacker.example','http://downloads.example.org'):
+            assert proxied.post('/api/downloads/dlc',headers={**headers,'Origin':origin},json=payload).status_code==403
+        assert proxied.post('/api/downloads/dlc',headers={**headers,'X-CSRF-Token':'wrong'},json=payload).status_code==403
+        assert len(engine.calls)==calls
+
+def test_untrusted_client_cannot_change_origin_scheme_with_forwarded_header(client):
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+    browser,engine=client
+    proxy=ProxyHeadersMiddleware(main.app,trusted_hosts=['127.0.0.1'])
+    with TestClient(proxy,base_url='http://downloads.example.org',client=('192.0.2.50',12345)) as untrusted:
+        response=untrusted.post('/api/auth/login',headers={'X-Forwarded-Proto':'https','Origin':'https://downloads.example.org'},json={'username':'admin','password':'test-only-password-123'})
+        assert response.status_code==403
+    assert not engine.calls
+
 @pytest.mark.parametrize('files',[
     [], [dlc_file()]*21, [dlc_file('wrong.zip')], [dlc_file('../escape.dlc')],
     [{'name':'empty.dlc','content':''}], [{'name':'bad.dlc','content':'???'}],

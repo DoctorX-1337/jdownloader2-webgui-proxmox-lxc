@@ -45,6 +45,8 @@ if [ -f package-lock.json ]; then npm ci --no-fund --no-audit; else npm install 
 npm run build
 chmod -R a+rX "$PROJECT/frontend/dist"
 install -m 644 "$PROJECT/nginx/jdownloader-web.conf" /etc/nginx/sites-available/jdownloader-web
+install -d -m 755 /etc/nginx/jdownloader-trusted-proxies.d
+touch /etc/nginx/jdownloader-trusted-proxies.d/reverse-proxy.conf
 ln -sfn /etc/nginx/sites-available/jdownloader-web /etc/nginx/sites-enabled/jdownloader-web
 rm -f /etc/nginx/sites-enabled/default
 nginx -t

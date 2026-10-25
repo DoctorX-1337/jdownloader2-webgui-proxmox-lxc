@@ -18,6 +18,8 @@ install -m 755 "$PROJECT/scripts/check-nas.py" /usr/local/lib/jdownloader/check-
 install -m 755 "$PROJECT/scripts/nas-watch.sh" /usr/local/sbin/jdownloader-nas-watch
 install -m 755 "$PROJECT/scripts/backup.sh" /usr/local/sbin/backup-jdownloader-web
 install -m 644 "$PROJECT/nginx/jdownloader-web.conf" /etc/nginx/sites-available/jdownloader-web
+install -d -m 755 /etc/nginx/jdownloader-trusted-proxies.d
+touch /etc/nginx/jdownloader-trusted-proxies.d/reverse-proxy.conf
 ln -sfn /etc/nginx/sites-available/jdownloader-web /etc/nginx/sites-enabled/jdownloader-web
 install -m 644 "$PROJECT"/systemd/*.service "$PROJECT"/systemd/*.timer /etc/systemd/system/
 nginx -t
