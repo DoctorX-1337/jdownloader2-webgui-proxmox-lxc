@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import pytest
 from fastapi.testclient import TestClient
@@ -38,6 +39,85 @@ def signed_in(client):
     response=client.post('/api/auth/login',json={'username':'admin','password':'test-only-password-123'})
     assert response.status_code==200
     return {'X-CSRF-Token':response.json()['csrf']}
+
+def dlc_file(name='example.dlc', marker=b'A'):
+    return {'name':name,'content':base64.b64encode(marker*128).decode('ascii')}
+
+def test_dlc_batch_uses_normal_download_settings_and_deduplicates(client):
+    browser,engine=client
+    headers=signed_in(browser)
+    with database.db() as connection:
+        connection.execute('INSERT INTO settings VALUES (?,?)',('autostart','false'))
+        connection.execute('INSERT INTO settings VALUES (?,?)',('auto_extract','false'))
+    first,second=dlc_file(),dlc_file('second.DLC',b'B')
+    response=browser.post('/api/downloads/dlc',headers=headers,json={'confirmed':True,'files':[first,second,first]})
+    assert response.status_code==200
+    assert response.json()['submitted']==2
+    assert len(engine.calls)==1
+    path,(query,)=engine.calls[0]
+    assert path=='/linkgrabberv2/addLinks'
+    assert query['dataURLs']==['data:application/dlc;base64,'+item['content'] for item in (first,second)]
+    assert query['destinationFolder']=='/mnt/downloads'
+    assert query['autostart'] is False and query['autoExtract'] is False
+    assert query['assignJobID'] and query['overwritePackagizerRules']
+    assert first['content'] not in response.text
+
+def test_dlc_requires_session_csrf_and_explicit_confirmation(client):
+    browser,engine=client
+    payload={'confirmed':True,'files':[dlc_file()]}
+    assert browser.post('/api/downloads/dlc',json=payload).status_code==401
+    headers=signed_in(browser)
+    assert browser.post('/api/downloads/dlc',json=payload).status_code==403
+    assert browser.post('/api/downloads/dlc',headers={**headers,'Origin':'https://attacker.example'},json=payload).status_code==403
+    for confirmation in (None,False):
+        body={'files':[dlc_file()]}
+        if confirmation is not None:body['confirmed']=confirmation
+        assert browser.post('/api/downloads/dlc',headers=headers,json=body).status_code==422
+    assert not engine.calls
+
+@pytest.mark.parametrize('files',[
+    [], [dlc_file()]*21, [dlc_file('wrong.zip')], [dlc_file('../escape.dlc')],
+    [{'name':'empty.dlc','content':''}], [{'name':'bad.dlc','content':'???'}],
+    [{'name':'text.dlc','content':base64.b64encode(b'not a container').decode('ascii')}],
+    [dlc_file(),{'name':'bad.dlc','content':'???'}],
+    [{'name':'large.dlc','content':base64.b64encode(b'A'*(2*1024*1024+1)).decode('ascii')}],
+])
+def test_invalid_dlc_batch_never_reaches_engine(client,files):
+    browser,engine=client
+    response=browser.post('/api/downloads/dlc',headers=signed_in(browser),json={'confirmed':True,'files':files})
+    assert response.status_code==422
+    assert not engine.calls
+
+def test_dlc_limits_total_decoded_size_and_streamed_body(client,monkeypatch):
+    browser,engine=client
+    headers=signed_in(browser)
+    monkeypatch.setattr(main.dlc,'MAX_TOTAL_BYTES',200)
+    payload={'confirmed':True,'files':[dlc_file(),dlc_file('second.dlc',b'B')]}
+    assert browser.post('/api/downloads/dlc',headers=headers,json=payload).status_code==413
+    monkeypatch.setattr(main.dlc,'MAX_REQUEST_BYTES',100)
+    assert browser.post('/api/downloads/dlc',headers=headers,content=iter([b' '*60,b' '*60])).status_code==413
+    assert not engine.calls
+
+def test_dlc_is_blocked_by_offline_nas_and_low_space(client,monkeypatch):
+    browser,engine=client
+    headers=signed_in(browser)
+    payload={'confirmed':True,'files':[dlc_file()]}
+    async def offline():return {'online':False,'writable':False,'free':0}
+    monkeypatch.setattr(main,'storage',offline)
+    assert browser.post('/api/downloads/dlc',headers=headers,json=payload).status_code==503
+    async def full():return {'online':True,'writable':True,'free':100}
+    monkeypatch.setattr(main,'storage',full)
+    assert browser.post('/api/downloads/dlc',headers=headers,json=payload).status_code==507
+    assert not engine.calls
+
+def test_dlc_engine_failure_is_not_reported_as_success(client,monkeypatch):
+    browser,engine=client
+    async def unavailable(*args):return None
+    monkeypatch.setattr(engine,'call',unavailable)
+    response=browser.post('/api/downloads/dlc',headers=signed_in(browser),json={'confirmed':True,'files':[dlc_file()]})
+    assert response.status_code==503
+    with database.db() as connection:
+        assert connection.execute('SELECT COUNT(*) FROM jobs').fetchone()[0]==0
 
 def test_authentication_csrf_and_logout(client):
     browser,engine=client

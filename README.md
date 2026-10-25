@@ -48,6 +48,16 @@ Unter **Einstellungen → Entpackpasswörter** lassen sich Standardpasswörter e
 
 Ein erfolgreich übergebener Link kann trotzdem beim Anbieter auf ein Captcha oder einen kostenlosen Downloadslot warten. Das Portal zeigt diesen Zustand deutlich an. Für unbeaufsichtigte Downloads bei solchen Anbietern ist ein gültiger Premium-Account erforderlich; aktuell ist kein Account vorinstalliert.
 
+## DLC-Dateien hochladen
+
+Unter **Übersicht** oder **Downloads → DLC-Dateien hochladen** lassen sich mehrere `.dlc`-Dateien gleichzeitig auswählen. Der Bestätigungsdialog zeigt Dateinamen, Größen und die Gesamtgröße. Erst **Bestätigen & übergeben** lädt die Dateien hoch und übergibt sie gemeinsam an JDownloader; **Abbrechen** verwirft die Auswahl.
+
+Es gelten maximal **20 Dateien**, **2 MB je Datei** und **10 MB insgesamt**. Identische Container im selben Auftrag werden nur einmal übergeben. JDownloader entschlüsselt die Container und verarbeitet die gefundenen Links mit denselben Einstellungen für NAS-Ziel, Autostart und Entpacken wie normale Links. Die erfolgreiche Übergabe bestätigt den Auftrag; ob Links entschlüsselt werden können und beim Anbieter verfügbar sind, zeigt anschließend JDownloader im LinkGrabber beziehungsweise unter Downloads.
+
+Der Upload verlangt eine angemeldete Sitzung, CSRF-Schutz und eine ausdrückliche Bestätigung. Die gesamte Auswahl wird vor der Übergabe geprüft. Containerinhalte werden nicht in der Portal-Datenbank oder in dessen Logs gespeichert. Für bestehende Installationen muss neben Backend und Frontend auch die Nginx-Konfiguration aktualisiert werden: Der DLC-Endpunkt erlaubt bis zu 14 MB für die Base64-kodierte Anfrage, die übrigen Endpunkte behalten ihr bisheriges Limit. `scripts/update.sh` übernimmt diese Konfiguration.
+
+Technische Grundlage: [JDownloader LinkCollector API](https://github.com/mirror/jdownloader/blob/master/src/org/jdownloader/api/linkcollector/v2/LinkCollectorAPIImplV2.java), `addLinks` mit `dataURLs`.
+
 ## Architektur
 
 ```text

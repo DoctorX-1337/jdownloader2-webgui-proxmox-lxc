@@ -12,12 +12,13 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, ValidationError
 from . import auth, config
 from . import extension_auth
 from .database import db, initialize
 from .jd import JDownloader, EngineUnavailable
 from .storage import storage, OFFLINE
+from . import dlc
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
 logger = logging.getLogger('jdweb')
@@ -178,19 +179,45 @@ def parse_links(value):
 class NewDownload(BaseModel):
     links: str | list[str]
 
-async def submit_links(links):
-    await require_nas()
-    job = await jd.call('/linkgrabberv2/addLinks', {'links':'\n'.join(links),'destinationFolder':config.DOWNLOAD_PATH,'autostart':setting('autostart',True),'autoExtract':setting('auto_extract',True),'assignJobID':True,'overwritePackagizerRules':True})
+def download_options():
+    return {'destinationFolder':config.DOWNLOAD_PATH,'autostart':setting('autostart',True),'autoExtract':setting('auto_extract',True),'assignJobID':True,'overwritePackagizerRules':True}
+
+async def submit_job(query, count):
+    job = await jd.call('/linkgrabberv2/addLinks', {**download_options(), **query})
     if not isinstance(job,dict) or 'id' not in job:
         raise EngineUnavailable()
     with db() as connection:
-        connection.execute('INSERT OR REPLACE INTO jobs VALUES (?,?,?)',(str(job['id']),len(links),time.time()))
+        connection.execute('INSERT OR REPLACE INTO jobs VALUES (?,?,?)',(str(job['id']),count,time.time()))
+    return str(job['id'])
+
+async def submit_links(links):
+    await require_nas()
+    job = await submit_job({'links':'\n'.join(links)}, len(links))
     logger.info('Downloadauftrag erstellt: %d Links',len(links))
-    return {'success':True,'submitted':len(links),'job':str(job['id']),'message':f'{len(links)} Links werden analysiert. JDownloader verarbeitet sie automatisch.'}
+    return {'success':True,'submitted':len(links),'job':job,'message':f'{len(links)} Links werden analysiert. JDownloader verarbeitet sie automatisch.'}
 
 @app.post('/api/downloads')
 async def add_download(body:NewDownload, user=Depends(auth.session)):
     return await submit_links(parse_links(body.links))
+
+@app.post('/api/downloads/dlc')
+async def upload_dlc(request:Request, user=Depends(auth.session)):
+    # Authenticate (including CSRF) before reading an upload and enforce a
+    # limit even when the caller bypasses Nginx or omits Content-Length.
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(body) + len(chunk) > dlc.MAX_REQUEST_BYTES:
+            raise HTTPException(413, 'Die DLC-Dateien dürfen zusammen höchstens 10 MB groß sein.')
+        body.extend(chunk)
+    try:
+        upload = dlc.DlcUpload.model_validate_json(body)
+    except ValidationError:
+        raise HTTPException(422, 'Bitte 1 bis 20 DLC-Dateien auswählen und die Übergabe bestätigen.') from None
+    urls = dlc.data_urls(upload.files)
+    await require_nas()
+    job = await submit_job({'dataURLs':urls}, len(urls))
+    logger.info('DLC-Auftrag erstellt: %d Container', len(urls))
+    return {'success':True,'submitted':len(urls),'job':job,'message':f'{len(urls)} DLC-Datei(en) an JDownloader übergeben. Die enthaltenen Links werden entschlüsselt und nach deinen Einstellungen verarbeitet.'}
 
 @app.post('/api/extension/links')
 async def extension_links(body:NewDownload, allowed=Depends(extension_auth.require)):
