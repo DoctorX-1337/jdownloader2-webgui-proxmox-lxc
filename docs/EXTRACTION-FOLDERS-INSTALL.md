@@ -2,7 +2,7 @@
 
 ## Verhalten
 
-Der eigene Tab **Entpacken** zeigt JDownloaders Archivkatalog mit echten Status- und Fortschrittswerten. Start, Neustart und Abbruch erfordern eine Bestätigung. Aktionen werden vor dem Aufruf erneut gegen den nativen Katalog geprüft und auf die exakten Archivteile beziehungsweise den aktuellen Controller begrenzt. Fehlende Teile und mehrdeutige Dateinamen sperren den manuellen Start. Ein Neustart setzt ausschließlich den archivbezogenen Entpackpfad auf einen neuen Unterordner; bestehende Dateien und globale Passwort-/Löschregeln bleiben erhalten.
+Der eigene Tab **Entpacken** zeigt JDownloaders Download- und Entpackstatus mit echten Fortschrittswerten. Dateinamen gruppieren die Archivteile; die native Entpackwarteschlange liefert aktive Controller. Die automatische Aktualisierung liest keine Archivheader und startet keine aufwendigen NAS-Verzeichnisprüfungen. Erst eine bestätigte Start-/Neustartaktion lässt JDownloader die exakt ausgewählten Teile als Archiv prüfen. Fehlende Teile und mehrdeutige Dateinamen sperren den manuellen Start. Ein Neustart setzt ausschließlich den archivbezogenen Entpackpfad auf einen neuen Unterordner; bestehende Dateien und globale Passwort-/Löschregeln bleiben erhalten.
 
 Neue normale Links, DLC-Aufträge, Click’n’Load und manuell gestartete LinkGrabber-Aufträge verwenden benannte Paketordner. Das Konfigurationsskript setzt dieselbe Vorgabe über die lokale API ohne Engine-Neustart. Die optionale Bestandsmigration verwendet JDownloaders Verschiebefunktion für Archive und einen protokollierten, nicht überschreibenden Rename für eindeutig zugeordnete entpackte Dateien. Laufende und teilweise geladene Pakete bleiben unverändert.
 
@@ -12,7 +12,7 @@ Der NAS-Wächter merkt sich den Downloadcontroller-Zustand vor seinem Schutzstop
 
 ## Prüfung
 
-- 99 Python-Tests: bisherige Funktionen, Paketpfade, Pfadbereinigung, Archivzuordnung, genaue IDs, Bestätigungen/CSRF, Neustartziel, Abbruch, unvollständige und veraltete Aufträge, Installationsgrenzen und Controller-Wiederaufnahme.
+- 105 Python-Tests: bisherige Funktionen, Paketpfade, Pfadbereinigung, Archivzuordnung, genaue IDs, Bestätigungen/CSRF, Neustartziel, Abbruch, unvollständige und veraltete Aufträge, Installationsgrenzen, automatische Namensvergabe, fehlerhafte Konsolenbytes und Controller-Wiederaufnahme.
 - Isolierter Shell-Test: fehlgeschlagener NAS-Schutzstopp, vorhandener Marker, verzögerte API-Bereitschaft und erfolgreicher späterer Wiederanlauf.
 - TypeScript-Prüfung und Vite-Produktionsbuild erfolgreich.
 - Browserprüfung in Chromium auf Desktop und Mobilformat: automatische Prozentaktualisierung, Modalbestätigung, Abbrechen ohne Aktion, Archiv-Neustart und Abbruch, gesperrte unvollständige Archive, kein horizontaler Seitenüberlauf. Schreibende Browser-Testaktionen wurden abgefangen.

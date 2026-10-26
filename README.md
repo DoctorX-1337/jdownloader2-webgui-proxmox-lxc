@@ -52,6 +52,8 @@ Der Assistent führt durch die erforderlichen Einstellungen und richtet unter an
 
 Passwörter werden bei der Eingabe verdeckt. Bestehende Container werden nicht automatisch übernommen.
 
+Im **Schnellmodus** werden die nächste freie Container-ID, ein freier Name (`jdownloader2`, danach `jdownloader2-01`, `-02` usw.), Storage, Bridge und Ressourcen automatisch gewählt. Gateway, DNS und Proxmox-Adresse werden erkannt. Für individuelle Einstellungen steht **Eigene Vorgaben** bereit. Der Assistent verarbeitet Konsoleneingaben und Kommandoausgaben mit festgelegter UTF-8-Codierung.
+
 **Ausführliche Anleitung:** [Schnellinstallation](docs/QUICK-INSTALL.md)
 
 ## Die Weboberfläche
@@ -68,7 +70,7 @@ Mehrere Links beziehungsweise Downloadaufträge lassen sich auswählen und nach 
 
 ### Archive und Entpacken
 
-Der separate Bereich **Entpacken** zeigt erkannte Archive, verfügbare und fehlende Teile sowie den tatsächlichen Entpackfortschritt. Je nach Archivzustand stehen Aktionen zum Starten, erneuten Entpacken oder Abbrechen zur Verfügung.
+Der separate Bereich **Entpacken** zeigt erkannte Archive, heruntergeladene und fehlende Teile sowie den tatsächlichen Entpackfortschritt. Je nach Archivzustand stehen Aktionen zum Starten, erneuten Entpacken oder Abbrechen zur Verfügung.
 
 Unterstützt werden außerdem Standardpasswörter für Archive und die automatische Verarbeitung neuer ZIP-, RAR- und 7z-Aufträge. Passwortfehler, Prüfsummenfehler und fehlende Archivteile werden gesondert angezeigt.
 

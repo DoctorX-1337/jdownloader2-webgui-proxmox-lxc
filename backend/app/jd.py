@@ -18,7 +18,7 @@ class JDownloader:
         try:
             # The local API expects native positional values in a params array.
             # Credentials and long link batches must not appear in URL queries.
-            response = await self.client.post(self.base + endpoint, json={'params':list(params)})
+            response = await self.client.post(self.base + endpoint, json={'params':list(params)}, timeout=30 if endpoint=='/extraction/getArchiveInfo' else 12)
             response.raise_for_status()
             body = response.json()
             if not isinstance(body, dict) or 'type' in body:

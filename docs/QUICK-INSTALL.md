@@ -16,7 +16,9 @@ Der Assistent lädt die Projektquellen aus diesem Repository. Das Skript vor dem
 bash jd2-quick-install.sh --check
 ```
 
-Abgefragt werden die freie Container-ID, Hostname, Storage für Systemdisk und Vorlage, Bridge, freie statische IPv4-Adresse samt Präfix, Gateway, DNS, die IPv4-Adresse dieses Proxmox-Knotens, Ressourcen und der SMB-Zielpfad. NAS- und WebGUI-Passwort werden verdeckt abgefragt und nicht ausgegeben. Vor der ersten Änderung erscheint eine Zusammenfassung zur Bestätigung. Der WebGUI-Benutzer heißt `admin`; sein Passwort benötigt mindestens zwölf Zeichen.
+Standard ist **Schnellinstallation**: Die nächste freie Container-ID kommt von Proxmox. Der Hostname wird clusterweit geprüft; bei vorhandenem `jdownloader2` folgen automatisch `jdownloader2-01`, `-02` usw. Systemdisk-Storage, Template-Storage, Bridge, Gateway, DNS, Proxmox-Adresse und Ressourcen werden vorbelegt. Abgefragt werden die freie statische IPv4-Adresse samt Präfix, der SMB-Zielpfad und die Anmeldedaten. **Eigene Vorgaben** erlaubt die Anpassung aller Werte.
+
+NAS- und WebGUI-Passwort werden verdeckt abgefragt und nicht ausgegeben. Vor der ersten Änderung erscheint eine Zusammenfassung aller Werte zur Bestätigung. Der WebGUI-Benutzer heißt `admin`; sein Passwort benötigt mindestens zwölf Zeichen. Das Startskript setzt eine UTF-8-Umgebung; ungültige Zeichen aus der Konsole führen zu einer erneuten Eingabe statt zu einem unverständlichen Decoder-Abbruch.
 
 Als Standard sind 4 vCPU, 4 GiB RAM, 2 GiB Swap und eine 24-GiB-Systemdisk vorgesehen. Der LXC benötigt Internetzugang für Ubuntu-Pakete, npm, Python und die JDownloader-Engine. Ein aktiver Directory-Storage für das NAS-Hookskript muss vorhanden sein. Der Assistent ergänzt dort gegebenenfalls den Inhaltstyp `snippets`. Der Proxmox-Knoten muss aus dem LXC auf TCP-Port 22 erreichbar sein. Die WebGUI-Firewall erlaubt HTTP/HTTPS aus dem eingegebenen IPv4-Subnetz; für andere Clientnetze muss die Regel später angepasst werden.
 

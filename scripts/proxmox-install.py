@@ -19,7 +19,7 @@ PROJECT = Path(__file__).resolve().parents[1]
 
 
 def run(args, *, data=None, timeout=180, visible=False):
-    result = subprocess.run([str(a) for a in args], input=data, text=True, timeout=timeout,
+    result = subprocess.run([str(a) for a in args], input=data, text=True, encoding='utf-8', errors='replace', timeout=timeout,
                             stdout=None if visible else subprocess.PIPE, stderr=None if visible else subprocess.PIPE)
     if result.returncode:
         # Command output may contain mount credentials or package configuration.
@@ -29,7 +29,14 @@ def run(args, *, data=None, timeout=180, visible=False):
 
 def prompt(label, default, validate=lambda value: bool(value)):
     while True:
-        value = input(f'{label} [{default}]: ').strip() or str(default)
+        try:
+            value = input(f'{label} [{default}]: ').strip() or str(default)
+        except UnicodeError:
+            print('Die Konsole hat ungültige Zeichen gesendet. Bitte den Wert erneut eingeben.')
+            continue
+        if '\ufffd' in value:
+            print('Die Konsole hat ungültige Zeichen gesendet. Bitte den Wert erneut eingeben.')
+            continue
         try:
             if validate(value):
                 return value
@@ -50,6 +57,16 @@ def parse_share(value):
 
 def valid_ip(value):
     return isinstance(ipaddress.ip_address(value), ipaddress.IPv4Address)
+
+
+def automatic_hostname(existing, base='jdownloader2'):
+    used = {str(name).casefold() for name in existing}
+    if base.casefold() not in used:
+        return base
+    number = 1
+    while f'{base}-{number:02}'.casefold() in used:
+        number += 1
+    return f'{base}-{number:02}'
 
 
 def private_file(path, text, mode=0o600):
@@ -74,24 +91,40 @@ def wizard():
     templates = [s['storage'] for s in status if s.get('active') and 'vztmpl' in s.get('content', '').split(',')]
     if not roots or not templates:
         raise RuntimeError('Aktiver Storage für rootdir und vztmpl wird benötigt.')
-    ct = prompt('Neue Container-ID', run(['pvesh', 'get', '/cluster/nextid']), lambda s: s.isdecimal() and 100 <= int(s) <= 999999999)
+    advanced = prompt('Modus: 1 = Schnellinstallation, 2 = eigene Vorgaben', '1', lambda s:s in ('1','2')) == '2'
+    next_id = str(json.loads(run(['pvesh','get','/cluster/nextid','--output-format','json'])))
+    inventory = json.loads(run(['pvesh','get','/cluster/resources','--type','vm','--output-format','json']))
+    existing_names = {item.get('name','').casefold() for item in inventory}
+    ct = prompt('Neue Container-ID', next_id, lambda s: s.isdecimal() and 100 <= int(s) <= 999999999) if advanced else next_id
     if subprocess.run(['pct', 'config', ct], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0 or (Path('/etc/pve/qemu-server') / (ct + '.conf')).exists():
         raise RuntimeError('Diese Gast-ID ist bereits belegt. Bestehende Gäste werden nicht geändert.')
-    name = prompt('Container-Hostname', 'jdownloader2', lambda s: bool(re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9-]{0,62}', s)))
-    root = prompt('Systemdisk-Storage: ' + ', '.join(roots), 'local-lvm' if 'local-lvm' in roots else roots[0], lambda s: s in roots)
-    template_store = prompt('Template-Storage: ' + ', '.join(templates), templates[0], lambda s: s in templates)
-    bridge = prompt('Netzwerkbridge', 'vmbr0', lambda s: bool(re.fullmatch(r'[A-Za-z0-9_.-]+', s)) and (Path('/sys/class/net') / s).exists())
+    name_default = automatic_hostname(existing_names)
+    root_default = 'local-lvm' if 'local-lvm' in roots else 'local-zfs' if 'local-zfs' in roots else roots[0]
+    template_default = 'local' if 'local' in templates else templates[0]
+    bridges = sorted(p.name for p in Path('/sys/class/net').iterdir() if (p/'bridge').exists())
+    if not bridges:
+        raise RuntimeError('Keine Netzwerkbridge gefunden.')
+    bridge_default = 'vmbr0' if 'vmbr0' in bridges else bridges[0]
+    name = prompt('Container-Hostname', name_default, lambda s: bool(re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9-]{0,62}', s)) and s.casefold() not in existing_names) if advanced else name_default
+    root = prompt('Systemdisk-Storage: ' + ', '.join(roots), root_default, lambda s: s in roots) if advanced else root_default
+    template_store = prompt('Template-Storage: ' + ', '.join(templates), template_default, lambda s: s in templates) if advanced else template_default
+    bridge = prompt('Netzwerkbridge', bridge_default, lambda s: s in bridges) if advanced else bridge_default
+    if not advanced:
+        print(f'Automatisch: LXC {ct} · {name} · Disk {root} · Vorlage {template_store} · Bridge {bridge}')
     cidr = prompt('Freie IPv4-Adresse mit Präfix, z.B. 192.0.2.20/24', '', lambda s: '/' in s and isinstance(ipaddress.ip_interface(s), ipaddress.IPv4Interface))
     address = str(ipaddress.ip_interface(cidr).ip)
     network = ipaddress.ip_interface(cidr).network
-    gateway = prompt('IPv4-Gateway', str(network.network_address + 1), lambda s: valid_ip(s) and ipaddress.ip_address(s) in network)
-    dns = prompt('DNS-Server (IPv4)', gateway, valid_ip)
+    routes = json.loads(run(['ip','-j','-4','route','show','default']))
+    gateway_default = next((r['gateway'] for r in routes if r.get('gateway') and ipaddress.ip_address(r['gateway']) in network),str(network.network_address + 1))
+    dns_default = next((value for value in re.findall(r'^nameserver\s+(\S+)',Path('/etc/resolv.conf').read_text(errors='replace'),re.M) if ':' not in value and not value.startswith('127.')),gateway_default)
+    gateway = prompt('IPv4-Gateway', gateway_default, lambda s: valid_ip(s) and ipaddress.ip_address(s) in network) if advanced else gateway_default
+    dns = prompt('DNS-Server (IPv4)', dns_default, valid_ip) if advanced else dns_default
     local_ips = [value for value in run(['hostname','-I']).split() if ':' not in value]
     host_default = next((value for value in local_ips if ipaddress.ip_address(value) in network), local_ips[0] if local_ips else '')
-    host = prompt('IPv4 dieses Proxmox-Knotens für NAS-Verwaltung', host_default, lambda s: valid_ip(s) and s in local_ips)
-    cores = prompt('vCPUs', '4', lambda s: s.isdecimal() and 1 <= int(s) <= 128)
-    memory = prompt('RAM in MiB', '4096', lambda s: s.isdecimal() and 2048 <= int(s) <= 1048576)
-    disk = prompt('Systemdisk in GiB', '24', lambda s: s.isdecimal() and 16 <= int(s) <= 4096)
+    host = prompt('IPv4 dieses Proxmox-Knotens für NAS-Verwaltung', host_default, lambda s: valid_ip(s) and s in local_ips) if advanced else host_default
+    cores = prompt('vCPUs', '4', lambda s: s.isdecimal() and 1 <= int(s) <= 128) if advanced else str(min(4,os.cpu_count() or 4))
+    memory = prompt('RAM in MiB', '4096', lambda s: s.isdecimal() and 2048 <= int(s) <= 1048576) if advanced else '4096'
+    disk = prompt('Systemdisk in GiB', '24', lambda s: s.isdecimal() and 16 <= int(s) <= 4096) if advanced else '24'
     nas = prompt('NAS-Ziel, z.B. \\\\nas.example\\Downloads', '', lambda s: bool(parse_share(s)))
     source, parts = parse_share(nas)
     username = prompt('SMB-Benutzername', '', lambda s: bool(s) and not any(c in s for c in '\r\n\x00'))
@@ -102,6 +135,7 @@ def wizard():
     if len(admin) < 12 or len(admin) > 256 or admin != getpass.getpass('WebGUI-Passwort bestätigen: '):
         raise RuntimeError('WebGUI-Passwörter stimmen nicht überein oder haben eine ungültige Länge.')
     print(f'\nNeuer LXC {ct} · {name} · {cidr} · {root}:{disk} GiB · {cores} vCPU · {memory} MiB RAM')
+    print(f'Bridge {bridge} · Gateway {gateway} · DNS {dns} · Proxmox {host}')
     print('Ubuntu 24.04 · unprivilegiert · SMB-Bind-Mount · eingeschränkter NAS-Verwaltungszugang')
     if input('Installation mit diesen Werten starten? [ja/NEIN]: ').strip().lower() != 'ja':
         print('Abgebrochen. Es wurde nichts geändert.')
@@ -260,6 +294,12 @@ def setup_management(c, base, mount, candidate, helper_dir, user, rpc, work):
 
 
 def main():
+    # Proxmox web consoles can inherit an unavailable/non-UTF-8 host locale.
+    # Decode command output consistently and reject damaged interactive input.
+    if hasattr(sys.stdin, 'reconfigure'):
+        sys.stdin.reconfigure(encoding='utf-8', errors='replace')
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true', help='Nur Quelldateien und Proxmox-Werkzeuge prüfen; nichts ändern.')
     args = parser.parse_args()
@@ -277,6 +317,9 @@ def main():
 if __name__ == '__main__':
     try:
         main()
+    except UnicodeError:
+        print('\nInstallation angehalten: Die Terminalcodierung ist ungültig. Bitte mit LC_ALL=C.UTF-8 erneut starten.', file=sys.stderr)
+        sys.exit(1)
     except (RuntimeError, ValueError, subprocess.TimeoutExpired) as error:
         print('\nInstallation angehalten: '+str(error) if not isinstance(error, subprocess.TimeoutExpired) else '\nInstallation angehalten: Zeitlimit einer Systemaktion erreicht.', file=sys.stderr)
         sys.exit(1)

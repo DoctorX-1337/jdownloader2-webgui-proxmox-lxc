@@ -1,6 +1,7 @@
 #!/bin/bash
 # Run from an interactive root console on the target Proxmox VE node.
 set -euo pipefail
+export LANG=C.UTF-8 LC_ALL=C.UTF-8 PYTHONUTF8=1
 if [[ ${1:-} = --help ]]; then
   echo 'Proxmox VE: bash quick-install.sh [--check]'
   echo 'Downloads project sources and starts the interactive LXC installer.'

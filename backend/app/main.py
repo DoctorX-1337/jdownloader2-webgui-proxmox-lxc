@@ -314,7 +314,7 @@ class ConfirmExtraction(BaseModel):
 @app.get('/api/extractions')
 async def get_extractions(user=Depends(auth.session)):
     rows = await extractions.snapshot(jd)
-    return {'archives':[{k:v for k,v in row.items() if k not in ('linkIds','controllerId')} for row in rows]}
+    return {'archives':[{k:v for k,v in row.items() if k not in ('linkIds','controllerId','lookupRequired')} for row in rows]}
 
 @app.post('/api/extractions/{archive_id}/{action}')
 async def extraction_action(archive_id:str, action:Literal['start','restart','cancel'], body:ConfirmExtraction, user=Depends(auth.session)):
