@@ -1,219 +1,190 @@
 # JDownloader 2 · Custom Fan Project
 
-Lokales Downloadportal für eine native, headless betriebene JDownloader-2-Installation in einem unprivilegierten Proxmox-LXC. Vorhandene Mockups, Logos und Favicons bilden die Gestaltung; Downloadstatus und Aktionen stammen aus der echten JDownloader-API.
+**Unofficial Self-Hosted Web Interface for JDownloader 2**
 
-Alle IP-Adressen, NAS-Namen und Containerkennungen in dieser öffentlichen Fassung sind neutrale Beispielwerte. Vor der Installation müssen sie an die eigene Umgebung angepasst werden; produktive Infrastrukturangaben und Zugangsdaten werden nicht veröffentlicht. Die Beispiele verwenden das Dokumentationsnetz `192.0.2.0/24`.
+Eine moderne, selbst gehostete Weboberfläche zur Verwaltung von **JDownloader 2** in einem unprivilegierten **Proxmox-LXC-Container**.
+
+Das Projekt verbindet die native Download-Engine mit einer eigenständigen WebGUI, zentraler NAS-Anbindung und komfortablen Verwaltungsfunktionen. Im Mittelpunkt stehen eine übersichtliche Bedienung, nachvollziehbare Statusanzeigen und ein zuverlässiger Downloadbetrieb – ohne erforderliches MyJDownloader-Konto.
+
+> **Hinweis:** Dies ist ein unabhängiges, inoffizielles Fanprojekt und keine Anwendung der JDownloader-Entwickler.
+
+## Funktionen im Überblick
+
+| Bereich | Funktionen |
+|---|---|
+| **Downloadverwaltung** | Links hinzufügen, analysieren, starten, pausieren, fortsetzen und entfernen |
+| **Live-Monitoring** | Paket- und Dateifortschritt, Geschwindigkeit, übertragene Daten und Restzeit |
+| **LinkGrabber & DLC** | Linksammlungen, Mehrfachauswahl und Upload von DLC-Containern |
+| **Entpacken** | Automatische und manuelle Archivverarbeitung, Passwortverwaltung und eigener Entpackstatus |
+| **NAS-Integration** | SMB-/CIFS-Speicherziel, Schreibprüfung, Ausfallüberwachung und Zielpfadverwaltung |
+| **Browser-Integration** | Click'n'Load sowie Linkübergabe über Firefox- und Chromium-Erweiterungspakete |
+| **Premium-Accounts** | Verwaltung unterstützter Downloadanbieter über die WebGUI |
+| **Administration** | Lokaler Administratorzugang, Diagnose, Updates, Backup und Restore |
+
+Die WebGUI verwendet **echte Status- und Aktionsdaten aus der lokalen JDownloader-API**. Es werden keine Downloads simuliert und keine unbekannten Fortschrittswerte erfunden.
 
 ## Schnellinstallation auf Proxmox VE
 
-In der interaktiven root-Konsole des gewünschten Proxmox-VE-Knotens:
+Für die Einrichtung steht ein interaktiver Installationsassistent bereit. Er wird in der **Root-Konsole des gewünschten Proxmox-VE-Knotens** ausgeführt.
+
+Installationsskript herunterladen:
 
 ```bash
-curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/DoctorX-1337/jdownloader2-webgui-proxmox-lxc/main/scripts/quick-install.sh -o jd2-quick-install.sh
+curl --proto '=https' --tlsv1.2 -fsSL \
+  https://raw.githubusercontent.com/DoctorX-1337/jdownloader2-webgui-proxmox-lxc/main/scripts/quick-install.sh \
+  -o jd2-quick-install.sh
+```
+
+Das heruntergeladene Skript vor der Ausführung prüfen und anschließend starten:
+
+```bash
 bash jd2-quick-install.sh
 ```
 
-Der Assistent mit ASCII-Logo erstellt einen neuen unprivilegierten Ubuntu-LXC und richtet Netzwerk, SMB-NAS, JDownloader, WebGUI und einen eigenen Administratorzugang ein. Alle Werte werden abgefragt; Passwörter bleiben verdeckt. Bestehende Gäste werden nicht übernommen. Voraussetzungen, Versionsauswahl und Ablauf stehen in [Schnellinstallation](docs/QUICK-INSTALL.md).
+Der Assistent führt durch die erforderlichen Einstellungen und richtet unter anderem Folgendes ein:
 
-## Paketordner und Entpacken
+1. Einen neuen unprivilegierten Ubuntu-LXC-Container
+2. Netzwerk und NAS-Anbindung
+3. Die native JDownloader-2-Engine im Headless-Betrieb
+4. Backend, Weboberfläche und Nginx
+5. Einen eigenen Administratorzugang
+6. Benötigte Dienste und NAS-Überwachung
 
-Neue Links, DLCs und Click’n’Load-Aufträge verwenden `/mnt/downloads/<jd:packagename>`: JDownloader ersetzt den Platzhalter durch den Paketnamen. Archive werden standardmäßig im Paketordner entpackt. Entpackpasswörter und Löschregeln bleiben bestehen.
+Passwörter werden bei der Eingabe verdeckt. Bestehende Container werden nicht automatisch übernommen.
 
-Der eigene Tab **Entpacken** zeigt Archive, vollständige und fehlende Teile, Zustände und den echten Entpackfortschritt. Violett steht für laufendes Entpacken, Gelb für die Warteschlange, Grün für Erfolg und Rot für Fehler. Die Anzeige aktualisiert sich alle drei Sekunden. **Entpacken**, **Neu entpacken** und **Abbrechen** erfordern eine Bestätigung und betreffen nur das ausgewählte Archiv. Neu entpacken verwendet einen frischen Unterordner `Entpackt-Neustart-…`; vorhandene Dateien werden erhalten. Unvollständige oder nicht eindeutig zuordenbare Archive können nicht manuell gestartet werden.
+**Ausführliche Anleitung:** [Schnellinstallation](docs/QUICK-INSTALL.md)
 
-Nach einem NAS-bedingten Schutzstopp nimmt der NAS-Wächter einen zuvor laufenden Downloadbetrieb wieder auf, sobald NAS und lokale Engine-API bereit sind. Absichtlich angehaltene oder pausierte Downloads bleiben angehalten.
+## Die Weboberfläche
 
-`scripts/configure-download-folders.py` aktiviert Paketordner in einer bestehenden Engine ohne Neustart. `scripts/organize-download-folders.py` erstellt zunächst nur einen Plan für fertige und noch nicht begonnene Pakete. Erst `--apply` ändert deren Verzeichnisse über JDownloaders eigene Verschiebefunktion. Laufende, teilweise geladene und gerade entpackte Pakete werden ausgelassen. Bereits entpackte Dateien werden nur anhand eindeutiger Archivmetadaten und passender Dateigröße zugeordnet; mehrdeutige Dateien bleiben liegen. Ein geschütztes Journal protokolliert die Änderungen. Für die optionale Bestandsortierung wird `7zip` im Container benötigt.
+### Downloads und Pakete
 
-## Beispielkonfiguration
+Neue Links können direkt im Browser eingefügt und an JDownloader übergeben werden. Die Downloadansicht bietet sowohl eine **Paketübersicht** als auch eine **Einzeldateiansicht**.
 
-| Eigenschaft | Wert |
-|---|---|
-| Proxmox | 192.0.2.10 |
-| Container | 200 · jdownloader2 · unprivilegiert |
-| Weboberfläche | http://192.0.2.20/ |
-| DNS-Namen | jdownloader2 · jdownloader.fritz.box |
-| Betriebssystem | Ubuntu 24.04 LTS |
-| Ressourcen | 4 vCPU · 4 GB RAM · 2 GB Swap · 24 GB Systemdisk |
-| Benutzername | admin |
-| Downloadziel | `\\NAS-SERVER\media\Downloads` |
-| Containerpfad | `/mnt/downloads` |
+Angezeigt werden – soweit von der Engine verfügbar – der Gesamtfortschritt, einzelne Dateifortschritte, übertragene Datenmengen, Geschwindigkeit, verbleibende Zeit, Hoster und Downloadzustand. Die Werte aktualisieren sich automatisch.
 
-Das gewünschte Zugangspasswort wurde ausschließlich über einen Argon2id-Hash eingerichtet. Es steht nicht in Quellcode oder Dokumentation. Ein Web-Setup und eine Registrierung sind deaktiviert; die Einrichtung geschieht vor Freigabe des Webservers.
+Aktive Downloads erhalten animierte Fortschrittsanzeigen. Pausierte, wartende, fehlerhafte und abgeschlossene Downloads werden passend zu ihrem Zustand dargestellt. Die Einstellung `prefers-reduced-motion` wird berücksichtigt.
 
-Ubuntu 26.04 ist in der Vorlagenliste vorhanden, wird aber vom installierten Proxmox 9.0.3 beim Erstellen ausdrücklich als nicht unterstützt abgelehnt. Deshalb verwendet diese Installation Ubuntu 24.04 LTS. Der Container wurde anschließend aktualisiert.
+Mehrere Links beziehungsweise Downloadaufträge lassen sich auswählen und nach ausdrücklicher Bestätigung entfernen. Bereits heruntergeladene Dateien bleiben dabei erhalten.
 
-## Bedienung
+### Archive und Entpacken
 
-1. Anmelden und in der Übersicht Links einfügen; Zeilenumbrüche, Leerzeichen und Tabs werden akzeptiert.
-2. **Download starten** drücken. Doppelte Links innerhalb des Auftrags werden entfernt.
-3. JDownloader analysiert, bestätigt und startet verfügbare Links automatisch. Nicht verfügbare Links bleiben mit ihrem Status im LinkGrabber.
-4. Fortschritt, Geschwindigkeit, ETA, Hoster, Paket und Aktionen stehen unter **Downloads**. Entfernen löscht den Listeneintrag; vorhandene Dateien bleiben erhalten.
-5. **Historie** zeigt abgeschlossene Dateien auch nach dem Entfernen aus der JDownloader-Liste.
+Der separate Bereich **Entpacken** zeigt erkannte Archive, verfügbare und fehlende Teile sowie den tatsächlichen Entpackfortschritt. Je nach Archivzustand stehen Aktionen zum Starten, erneuten Entpacken oder Abbrechen zur Verfügung.
 
-Unter **Einstellungen → NAS-Zielpfad** ist die vollständige NAS-Adresse frei änderbar, zum Beispiel `\\anderes-nas\Freigabe\Unterordner`. Benutzername und NAS-Passwort sind optional; ohne neue Anmeldung bleibt der gespeicherte NAS-Zugang erhalten. Die neue Freigabe wird zuerst gemountet und mit den tatsächlichen Container-UIDs auf Schreibbarkeit geprüft. Fehlende Unterordner werden angelegt. Danach wird Container 200 kurz neu gestartet. Bestehende Dateien bleiben am bisherigen Ort; unterbrochene Downloads können am neuen Ziel von vorn beginnen.
+Unterstützt werden außerdem Standardpasswörter für Archive und die automatische Verarbeitung neuer ZIP-, RAR- und 7z-Aufträge. Passwortfehler, Prüfsummenfehler und fehlende Archivteile werden gesondert angezeigt.
 
-Unter **Einstellungen → Premium-Accounts** lassen sich unterstützte Downloadanbieter auswählen und Accounts hinzufügen, prüfen, deaktivieren oder entfernen. Manche Anbieter benötigen einen API-Schlüssel. Die Hosterliste und Accountprüfung kommen direkt von JDownloader. Das Webportal speichert keine Premium-Passwörter in SQLite und gibt sie nicht zurück.
+### LinkGrabber, DLC und Browser-Erweiterungen
 
-Unter **Einstellungen → Browser-Erweiterung** stehen Pakete für Firefox und Chromium bereit. Die Erweiterung fängt Click’n’Load-Aufrufe an `127.0.0.1:9666` beziehungsweise `localhost:9666` ab und leitet sie mit einem eigenen Erweiterungsschlüssel an dieses Portal weiter. Normale Links und markierte Linklisten können zusätzlich über das Browser-Kontextmenü gesendet werden. Beim Speichern fragt der Browser einmal nach Zugriff auf die frei eingestellte Portal-Adresse. Liegt die von Mozilla signierte XPI vor, startet **In Firefox installieren** den Firefox-Installationsdialog direkt aus der WebGUI. Bis dahin steht das Entwicklerpaket für `about:debugging` bereit. Chromium lädt das entpackte Paket im Entwicklermodus; eine private Website darf Erweiterungen dort nicht direkt installieren. Der Erweiterungsschlüssel kann im Portal kopiert oder erneuert werden.
+Die WebGUI unterstützt die Linkanalyse über JDownloader sowie den Upload mehrerer `.dlc`-Dateien nach einer ausdrücklichen Bestätigung. Die enthaltenen Links werden anschließend durch JDownloader verarbeitet.
 
-Firefox Release und Beta akzeptieren nur von Mozilla signierte Erweiterungen. Die Signierung zur Selbstverteilung benötigt einmalig AMO-API-Zugangsdaten und speichert diese nicht:
+Für **Firefox** und **Chromium** stehen Erweiterungspakete zur Verfügung. Sie ermöglichen unter anderem Click'n'Load, die Übergabe von Links und markierten Linklisten sowie die Konfiguration der Portaladresse.
 
-```bash
-AMO_JWT_ISSUER='...' AMO_JWT_SECRET='...' bash scripts/sign-firefox-extension.sh
-```
+Bei Firefox ist für die reguläre Installation eine von Mozilla signierte Erweiterung erforderlich; für Chromium wird das entpackte Erweiterungspaket im Entwicklermodus eingebunden.
 
-Die erzeugte XPI kommt nach `browser-extension/signed/`, wird beim nächsten Build in die WebGUI übernommen und von Nginx als `application/x-xpinstall` ausgeliefert. Danach genügt in Firefox ein Klick in der WebGUI plus die Bestätigung des Browserdialogs.
+### NAS-Anbindung und Schutzmechanismen
 
-Unter **Einstellungen → Entpackpasswörter** lassen sich Standardpasswörter einzeln hinzufügen und entfernen. Das Portal zeigt nur die Anzahl an; die Werte bleiben in JDownloaders eigener geschützter Konfiguration. Ist **Neue Archive automatisch entpacken** aktiviert, probiert JDownloader diese Liste bei neu hinzugefügten ZIP-, RAR- und 7z-Aufträgen automatisch. Der Ablauf wurde mit einem verschlüsselten Testarchiv bis zur inhaltlich geprüften Datei auf dem NAS verifiziert.
+Die SMB-/CIFS-Freigabe wird auf dem Proxmox-Host eingebunden. Nur der vorgesehene Downloadordner wird an den unprivilegierten Container durchgereicht.
 
-Ein erfolgreich übergebener Link kann trotzdem beim Anbieter auf ein Captcha oder einen kostenlosen Downloadslot warten. Das Portal zeigt diesen Zustand deutlich an. Für unbeaufsichtigte Downloads bei solchen Anbietern ist ein gültiger Premium-Account erforderlich; aktuell ist kein Account vorinstalliert.
+Der **NAS-Wächter** prüft Verfügbarkeit und Schreibbarkeit des Speicherziels. Bei einem Ausfall stoppt er den Downloadbetrieb, damit JDownloader nicht unbeabsichtigt in einen lokalen Ersatzordner schreibt.
 
-## Paketfortschritt und Einzeldateien
+Sobald das NAS und die lokale Engine-API wieder bereitstehen, kann ein zuvor aktiver Downloadbetrieb fortgesetzt werden. Absichtlich angehaltene oder pausierte Downloads bleiben angehalten.
 
-Die Downloadansicht startet mit **Pakete**. Jedes JDownloader-Paket erhält eine Karte mit Gesamtfortschritt, übertragenen und gesamten Bytes, Geschwindigkeit, geschätzter Restzeit und Anzahl fertiger Dateien. **Dateien ansehen** klappt die Teil-Dateien mit ihren eigenen Ladebalken auf. Über **Einzeldateien** bleibt die bisherige Liste mit ihren Downloadaktionen erreichbar.
+Der Zielpfad lässt sich über die Einstellungen der WebGUI ändern. **Wichtig:** Dateien am bisherigen Speicherort werden nicht automatisch verschoben; unterbrochene Downloads können am neuen Ziel erneut beginnen müssen.
 
-Die Daten aktualisieren sich automatisch alle drei Sekunden. Der Gesamtfortschritt verwendet JDownloaders Paketwerte und enthält bereits abgeschlossene Teile; unterschiedliche Dateigrößen werden nach Bytes gewichtet. Ist eine Gesamtgröße noch unbekannt, erscheint ein neutraler Balken statt eines erfundenen Prozentwerts. Pausen, Entpacken und abgeschlossene Pakete haben eigene Zustände. Bei einer Verbindungsunterbrechung bleibt der letzte Stand mit einem sichtbaren Hinweis erhalten.
-
-Die Übersicht zeigt zunächst offene Pakete; **Alle** blendet abgeschlossene Pakete ein. Suche und aufklappbare Dateidetails bleiben während der Aktualisierung erhalten. Die Gruppierung folgt vorhandenen JDownloader-Paketen: Ein DLC kann mehrere Pakete erzeugen, und der ursprüngliche DLC-Dateiname lässt sich aus älteren Downloadlisten nicht zuverlässig rekonstruieren. Die Ansicht liest ausschließlich Statusdaten und verändert weder Pakete noch Downloadaufträge.
-
-Paket- und Einzeldateiansicht verwenden dieselbe Fortschrittskomponente: dunkler Track, Blau-Cyan-Türkis-Verlauf, diagonale Lichtstreifen, Shimmer, leuchtende Fortschrittskante und drei kleine Partikel. Der Prozentwert steht separat rechts; Dateigröße, echte Übertragungsgeschwindigkeit und vorhandene Restzeitwerte ergänzen die Anzeige. Die Breite folgt ausschließlich den Backendwerten. Rücksprünge, etwa nach einem Zurücksetzen, erscheinen sofort korrekt.
-
-Animationen laufen nur bei aktiven Downloads mit gemessener Geschwindigkeit über null, sichtbarer Anzeige und sichtbarem Browser-Tab. Pausierte, wartende, fehlerhafte und abgeschlossene Downloads sowie veraltete Statusdaten bleiben statisch. Fertige Downloads werden grün, Pausen gedämpft blau, Fehler dezent rot und Entpackvorgänge gelb dargestellt. `prefers-reduced-motion` schaltet Bewegung und Partikel ab. Ein gemeinsamer `IntersectionObserver` pausiert unsichtbare Effekte; zusätzliche Animationsbibliotheken oder JavaScript-Animationsschleifen werden nicht benötigt. Die bisherigen Start-, Pause-, Fortsetzen- und Entfernen-Aktionen bleiben erhalten.
-
-Der Entpackstatus steht im eigenen Tab **Entpacken**. JDownloaders echte `PluginProgress`-Werte liefern Prozent, verarbeitete Bytes, Gesamtgröße und Restzeit des aktuellen Archivs. Ein Download kann deshalb bereits 100 % erreicht haben, während das Entpacken beispielsweise bei 58 % steht. Mehrteilige RAR-Dateien melden denselben Entpackvorgang mehrfach; die Anzeige zählt diese Bytes nicht mehrfach. Ohne native Messwerte erscheint keine erfundene Prozentzahl. Erfolg, Passwortfehler, Prüfsummenfehler und fehlende Archivteile haben eigene Hinweise.
-
-## Mehrere Einträge auswählen und entfernen
-
-Im **LinkGrabber** und unter **Downloads → Einzeldateien** stehen Checkboxen sowie **Alle auswählen** zur Verfügung. Die Auswahl bleibt bei automatischen Aktualisierungen und beim Filtern erhalten; aus der Liste verschwundene Einträge werden aus der Auswahl entfernt. **Alle auswählen** betrifft die aktuell sichtbaren Einträge. Neu hinzukommende Links werden nicht automatisch mit ausgewählt.
-
-**Auswahl entfernen** öffnet einen Bestätigungsdialog mit Anzahl und Bereich der Auswahl. Erst **Auswahl endgültig entfernen** übergibt die ausdrücklich bestätigten IDs. Im LinkGrabber werden wartende Links entfernt; in der Downloadliste werden nur die ausgewählten Downloadaufträge beendet und entfernt. Bereits gespeicherte NAS-Dateien bleiben erhalten. Größere Auswahlen werden in Gruppen von bis zu 2000 IDs übergeben; bei einem Fehler bleiben die noch nicht entfernten Einträge zur erneuten Bestätigung ausgewählt.
-
-## DLC-Dateien hochladen
-
-Unter **Übersicht** oder **Downloads → DLC-Dateien hochladen** lassen sich mehrere `.dlc`-Dateien gleichzeitig auswählen. Der Bestätigungsdialog zeigt Dateinamen, Größen und die Gesamtgröße. Erst **Bestätigen & übergeben** lädt die Dateien hoch und übergibt sie gemeinsam an JDownloader; **Abbrechen** verwirft die Auswahl.
-
-Es gelten maximal **20 Dateien**, **2 MB je Datei** und **10 MB insgesamt**. Identische Container im selben Auftrag werden nur einmal übergeben. JDownloader entschlüsselt die Container und verarbeitet die gefundenen Links mit denselben Einstellungen für NAS-Ziel, Autostart und Entpacken wie normale Links. Die erfolgreiche Übergabe bestätigt den Auftrag; ob Links entschlüsselt werden können und beim Anbieter verfügbar sind, zeigt anschließend JDownloader im LinkGrabber beziehungsweise unter Downloads.
-
-Eine dauerhafte DLC-Datei-Historie wird nicht geführt: Ein später erneut hochgeladener Container wird nicht anhand seines Dateihashes blockiert. Für Links, die noch in JDownloaders Downloadliste stehen, gilt dessen eigene Duplikatprüfung und die dort konfigurierte Aktion. Das Portal gleicht entfernte Downloadlinks nicht mit seiner Historie ab.
-
-Der Upload verlangt eine angemeldete Sitzung, CSRF-Schutz und eine ausdrückliche Bestätigung. Die gesamte Auswahl wird vor der Übergabe geprüft. Containerinhalte werden nicht in der Portal-Datenbank oder in dessen Logs gespeichert. Für bestehende Installationen muss neben Backend und Frontend auch die Nginx-Konfiguration aktualisiert werden: Der DLC-Endpunkt erlaubt bis zu 14 MB für die Base64-kodierte Anfrage, die übrigen Endpunkte behalten ihr bisheriges Limit. `scripts/update.sh` übernimmt diese Konfiguration.
-
-Technische Grundlage: [JDownloader LinkCollector API](https://github.com/mirror/jdownloader/blob/master/src/org/jdownloader/api/linkcollector/v2/LinkCollectorAPIImplV2.java), `addLinks` mit `dataURLs`.
-
-### Zugriff über einen HTTPS-Reverse-Proxy
-
-Der vorgelagerte Proxy muss den ursprünglichen `Host` einschließlich eines gegebenenfalls verwendeten Ports erhalten und `X-Forwarded-Proto` auf das tatsächliche Browser-Protokoll setzen. Seine genaue IP wird im Container unter `/etc/nginx/jdownloader-trusted-proxies.d/reverse-proxy.conf` freigegeben, zum Beispiel `192.0.2.40/32 1;`. Eine Vorlage liegt in [config/nginx-trusted-proxy.example.conf](config/nginx-trusted-proxy.example.conf). Danach `nginx -t && systemctl reload nginx` ausführen. Dieses lokale Vertrauensverzeichnis bleibt bei Updates erhalten.
-
-Nginx übernimmt die Protokollangabe ausschließlich von diesen freigegebenen Proxy-Adressen. Direkter HTTP-Zugriff bleibt möglich. Dadurch stimmen die Herkunftsprüfung der Anwendung und die öffentliche HTTPS-Adresse auch bei DLC-Uploads überein; Herkunftsprüfung und CSRF-Schutz bleiben aktiv.
-
-## Architektur
+## Technische Architektur
 
 ```text
-Browser → Nginx :80 → FastAPI 127.0.0.1:8000
-                         ↓
-                JDownloader 127.0.0.1:3128
-                         ↓
-                  /mnt/downloads
-                         ↓ Bind-Mount
-     Proxmox CIFS /mnt/nas-server-jdownloader/Downloads
-                         ↓
-              NAS-SERVER / media / Downloads
+Browser
+   |
+   v
+Nginx (Port 80)
+   |
+   v
+FastAPI / Uvicorn (127.0.0.1:8000)
+   |
+   v
+JDownloader 2 API (127.0.0.1:3128)
+   |
+   v
+/mnt/downloads (LXC)
+   |
+   v
+Proxmox-Bind-Mount -> SMB/CIFS-Freigabe -> NAS
 ```
 
-JDownloader verwendet seine vorhandene lokale API, intern weiterhin „Deprecated API“ genannt. Die aktuell laufende Installation wurde mit echten Aufrufen geprüft. `autostart=true` setzt in JDownloader sowohl automatische Bestätigung als auch Start. Requests werden als JSON-POST mit nativen positionalen `params` übergeben; Zugangsdaten stehen nicht in URL-Parametern. Es wird kein MyJDownloader-Konto benötigt.
-
-Quellen: [API-Dokumentation](https://my.jdownloader.org/developers/index.html), [RemoteAPIConfig](https://github.com/mirror/jdownloader/blob/master/src/org/jdownloader/api/RemoteAPIConfig.java), [Headless-Installation](https://support.jdownloader.org/en/knowledgebase/article/install-jdownloader-on-nas-and-embedded-devices).
-
-## NAS-Schutz und Verwaltung
-
-Die NAS-Anmeldung liegt mit Modus `0600` ausschließlich auf Proxmox unter `/etc/jdownloader-nas/credentials`. Die CIFS-Freigabe wird auf dem Host gemountet; ausschließlich der gewählte Zielordner wird in den Container eingebunden. UID/GID `1000:1000` im Container entsprechen `101000:101000` auf Proxmox.
-
-Die Mountprüfung verlangt den exakten Container-Mountpoint, Dateisystem `cifs`, die konfigurierte Quelle und den tatsächlichen Unterordner aus `/proc/self/mountinfo`. Ein bloß vorhandener Ordner reicht nicht. Schreibtest und Speicherprüfung laufen unter einem Zeitlimit. Vor neuen Downloads, Fortsetzen und globalem Start wird erneut geprüft. Der systemd-Dienst prüft zusätzlich vor jedem JDownloader-Start; eine Timer-Überwachung stoppt JDownloader bei einem NAS-Ausfall.
-
-Für die ausdrücklich freigegebene NAS-Verwaltung existiert auf Proxmox ein eigener SSH-Benutzer `jd2mount`. Sein Schlüssel ist auf `192.0.2.20` und einen festen Verwaltungshelfer für Container **200** eingeschränkt. Shell, PTY, Port-, Agent- und X11-Weiterleitung sind gesperrt. Sudo erlaubt ausschließlich den festen RPC-Wrapper ohne Argumente. Der Helfer kann NAS-Konfiguration und Bind-Mount dieses Containers ändern und ihn neu starten. Er übernimmt keine Shell-Kommandos aus Web-Eingaben. Ein fehlgeschlagener Wechsel versucht das bisherige Ziel wiederherzustellen.
-
-Diese Anwendung braucht HTTP-Zugriff im LAN, CIFS zum NAS sowie ausgehende Verbindungen für Downloads und Updates. Backend und JDownloader-API sind nur auf Loopback erreichbar. Container-SSH und Maildienst sind deaktiviert; Verwaltung erfolgt über `pct exec` auf Proxmox. Die Container-Firewall erlaubt Webzugriff ausschließlich aus `192.0.2.0/24`.
-
-## Reproduzierbare Installation
-
-Die ausführliche Host-Einrichtung steht in [docs/PROXMOX.md](docs/PROXMOX.md).
-
-1. NAS auf Proxmox mounten, unprivilegierten LXC anlegen und den gewählten NAS-Unterordner nach `/mnt/downloads` binden.
-2. Projekt nach `/opt/jdownloader-web` kopieren.
-3. Administrator-Hash ohne Passwortecho erstellen. Dafür zuerst `python3-venv` installieren:
-
-```bash
-python3 -m venv /opt/jdownloader-web/venv
-/opt/jdownloader-web/venv/bin/pip install argon2-cffi
-/opt/jdownloader-web/venv/bin/python /opt/jdownloader-web/scripts/hash-password.py /tmp/jdownloader-admin.json
-chgrp 1000 /tmp/jdownloader-admin.json
-bash /opt/jdownloader-web/scripts/install.sh --admin-hash-file /tmp/jdownloader-admin.json
-```
-
-Der Installer aktualisiert den Container, installiert die Laufzeit, richtet Benutzer, Dienste, Firewall und Nginx ein, baut das Frontend und prüft den Status. Ein bestehendes Administratorkonto wird nicht überschrieben. Für einen Neuaufbau müssen die NAS-Verwaltung und ihre Schlüssel auf Proxmox separat eingerichtet werden; siehe die Host-Anleitung.
-
-## Verzeichnisse und Dienste
-
-| Pfad/Dienst | Zweck |
+| Komponente | Technologie |
 |---|---|
-| `/opt/jdownloader` | JDownloader, Plugins und Updater; Benutzer jdownloader |
-| `/var/lib/jdownloader/cfg` | persistente JD-Konfiguration; `/opt/jdownloader/cfg` ist ein Symlink |
-| `/opt/jdownloader-web` | Quellcode, Python-venv, gebaute Weboberfläche |
-| `/etc/jdownloader-web/config.env` | Konfiguration, Modus 0640 |
-| `/etc/jdownloader-web/nas_key` | eingeschränkter NAS-Verwaltungsschlüssel, Modus 0600 |
-| `/etc/jdownloader-web/browser-extension.token` | eigener Zugriffsschlüssel der Browser-Erweiterung, Modus 0600 |
-| `/var/lib/jdownloader-web/app.db` | Administrator-Hash, Sitzungen, Einstellungen, Historie |
-| `jdownloader.service` | native Headless-Engine, automatischer Neustart einschließlich Updates |
-| `jdownloader-web.service` | FastAPI/Uvicorn als Benutzer jdweb |
-| `jdownloader-nas-watch.timer` | laufende NAS-Überwachung |
-| `nginx.service` | Webserver |
+| Virtualisierung | Proxmox VE |
+| Laufzeitumgebung | Unprivilegierter Ubuntu-LXC |
+| Webserver | Nginx |
+| Backend | Python / FastAPI |
+| Download-Engine | JDownloader 2 (Headless) |
+| Datenbank | SQLite |
+| Netzwerkfreigabe | SMB / CIFS |
+| Anmeldung | Lokaler Administratorzugang mit Argon2id-Passworthashing |
 
-## Update, Backup und Restore
+Die JDownloader-API und das Backend sind nur über Loopback erreichbar. Die Bedienung erfolgt über die WebGUI; ein MyJDownloader-Konto ist für diese Integration nicht notwendig.
 
-Neue Projektquellen zuerst nach `/opt/jdownloader-web` kopieren, anschließend:
+## Voraussetzungen
 
-```bash
-bash /opt/jdownloader-web/scripts/update.sh
-bash /opt/jdownloader-web/scripts/backup.sh
-bash /opt/jdownloader-web/scripts/restore.sh /var/backups/jdownloader-web/DATEI.tar.gz
-```
+- Proxmox VE mit Unterstützung für unprivilegierte LXC-Container
+- Eine mit der Proxmox-Version kompatible Ubuntu-LXC-Vorlage
+- Netzwerkzugriff für Installation, Downloads und Aktualisierungen
+- Eine erreichbare SMB-/CIFS-Freigabe, wenn Downloads auf einem NAS gespeichert werden sollen
+- Ausreichend CPU, Arbeitsspeicher und Speicherplatz entsprechend dem geplanten Downloadbetrieb
 
-Backups enthalten eine konsistente SQLite-Sicherung, Webkonfiguration einschließlich eingeschränktem Schlüssel und JDownloader-Konfiguration. Während der JD-Konfigurationssicherung wird die Engine kurz gestoppt. Downloads werden nicht kopiert. Backup-Dateien können Account-Zugangsdaten und Schlüssel enthalten und sind mit `0600` zu schützen. Proxmox-seitig zusätzlich `/etc/jdownloader-nas`, den zugehörigen fstab-Eintrag, den NAS-Hook und die LXC-Konfiguration sichern. Der Container-Backupjob schließt den NAS-Bind-Mount aus.
+Die im Projekt dokumentierte Installation nutzt **Ubuntu 24.04 LTS**. Ob andere Vorlagen verwendet werden können, hängt unter anderem von der eingesetzten Proxmox-Version ab.
 
-Restore validiert das Archiv, erstellt vorher ein Backup des aktuellen Zustands und meldet alte Sitzungen ab. Für eine exakt identische JD-Konfiguration sollte Restore auf einem passenden Container erfolgen; ein Restore ändert nicht automatisch den Host-Mount.
+## Sicherheit
 
-## Diagnose und Passwort zurücksetzen
+Die Anwendung enthält mehrere Schutzmaßnahmen:
 
-```bash
-pct exec 200 -- bash /opt/jdownloader-web/scripts/healthcheck.sh
-pct exec 200 -- journalctl -u jdownloader-web -n 80 --no-pager
-pct exec 200 -- journalctl -u jdownloader -n 80 --no-pager
-pct exec 200 -- systemctl status jdownloader-nas-watch.timer
-pct exec 200 -- ss -lntp
-```
+- Unprivilegierter Container und getrennte Dienstbenutzer
+- Passwort-Hashing mit Argon2id
+- Sitzungsbasierte Anmeldung und CSRF-Schutz
+- Geschützte Speicherung von Zugangsdaten und Schlüsseln
+- Beschränkung von Backend und JDownloader-API auf Loopback
+- Eingeschränkte Host-Verwaltung für NAS-Änderungen
+- Überwachung des NAS-Mounts vor und während des Downloadbetriebs
 
-Passwort in einer interaktiven Proxmox-Konsole zurücksetzen:
+**Netzwerkhinweis:** Die Standard-Weboberfläche ist für den Zugriff innerhalb eines vertrauenswürdigen lokalen Netzwerks vorgesehen. Für Zugriff von außen sollte ein entsprechend abgesicherter **HTTPS-Reverse-Proxy** verwendet werden. Die Herkunftsprüfung und die Konfiguration vertrauenswürdiger Proxy-Adressen sind dabei zu berücksichtigen.
 
-```bash
-pct enter 200
-cd /opt/jdownloader-web/backend
-PYTHONPATH=/opt/jdownloader-web/backend /opt/jdownloader-web/venv/bin/python ../scripts/reset-password.py
-```
+Weitere Informationen: [Sicherheitsdokumentation](docs/SECURITY.md)
 
-Weitere Hinweise: [Troubleshooting](docs/TROUBLESHOOTING.md), [Sicherheit](docs/SECURITY.md), [Abnahme](docs/ACCEPTANCE.md).
+## Wartung, Backup und Diagnose
 
-## Entwicklung
+| Aufgabe | Skript |
+|---|---|
+| Installation | `scripts/install.sh` |
+| Aktualisierung | `scripts/update.sh` |
+| Backup | `scripts/backup.sh` |
+| Wiederherstellung | `scripts/restore.sh` |
+| Diagnose | `scripts/healthcheck.sh` |
+| Administratorpasswort zurücksetzen | `scripts/reset-password.py` |
 
-Backend-Abhängigkeiten stehen in `backend/requirements.txt`, Frontend-Abhängigkeiten in `frontend/package-lock.json`. Produktionsdaten, private Schlüssel, die ursprünglichen Zugangsanweisungen und die Passwortdatei sind von Git und Quellpaketen ausgeschlossen.
+Die Backup-Funktion sichert die relevante Anwendungs- und JDownloader-Konfiguration, **nicht** die heruntergeladenen Dateien. Sicherungsarchive können Zugangsdaten enthalten und müssen entsprechend geschützt werden.
 
-```bash
-python -m pytest tests -q
-cd frontend
-npm ci
-npm run build
-```
+Für die detaillierte manuelle Einrichtung siehe [Proxmox-Installation](docs/PROXMOX.md).
 
-Tests verwenden eigene Stubs ausschließlich in den Testdateien. Die ausgelieferte Anwendung enthält keinen simulierten Downloadbetrieb. Die isolierte Browserprüfung und Live-Tests lesen die lokal vorhandene Passwortdatei direkt; diese Hilfen gehören nicht zum Webserver.
+## Dokumentation
 
-Unofficial Custom Fan Project. Not affiliated with or endorsed by the JDownloader developers. Die bereitgestellten Bilddateien bleiben vom Software-Lizenztext ausgenommen; deren Rechte liegen bei den jeweiligen Rechteinhabern.
+| Dokument | Inhalt |
+|---|---|
+| [Schnellinstallation](docs/QUICK-INSTALL.md) | Interaktive Einrichtung und Voraussetzungen |
+| [Proxmox-Installation](docs/PROXMOX.md) | Host-Konfiguration und manuelle Installation |
+| [Sicherheit](docs/SECURITY.md) | Schutzmechanismen, Zugangsdaten und Netzwerk |
+| [Fehlerbehebung](docs/TROUBLESHOOTING.md) | Diagnose und bekannte Fehlerfälle |
+| [Abnahme](docs/ACCEPTANCE.md) | Funktionsprüfungen und Tests |
+
+## Hinweise und Grenzen
+
+- Verfügbarkeit und Geschwindigkeit hängen vom jeweiligen Downloadanbieter ab.
+- Captchas, Wartezeiten und kostenlose Downloadslots werden nicht umgangen.
+- Manche Anbieter benötigen für unbeaufsichtigte Downloads einen gültigen Premium-Account.
+- Die WebGUI ersetzt nicht die JDownloader-Engine, sondern steuert sie über deren API.
+- Installation und Betrieb setzen grundlegende Kenntnisse im Umgang mit Proxmox und Linux voraus.
+
+## Rechtlicher Hinweis
+
+**JDownloader 2 · Custom Fan Project** ist ein unabhängiges, inoffizielles Fanprojekt und steht in keiner offiziellen Verbindung zu den Entwicklern von JDownloader. Es wird von diesen weder entwickelt noch offiziell unterstützt oder empfohlen.
+
+JDownloader und zugehörige Produktbezeichnungen sind Eigentum ihrer jeweiligen Rechteinhaber. Die Rechte an eingebundenen Logos, Marken und Bilddateien verbleiben bei den jeweiligen Rechteinhabern und werden nicht durch eine gegebenenfalls vorhandene Softwarelizenz dieses Projekts übertragen.
