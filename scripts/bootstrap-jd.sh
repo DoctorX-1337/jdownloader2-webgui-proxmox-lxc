@@ -11,10 +11,10 @@ cat > /var/lib/jdownloader/cfg/org.jdownloader.api.RemoteAPIConfig.json <<'JSON'
 {"deprecatedapienabled":true,"deprecatedapilocalhostonly":true,"deprecatedapiport":3128,"headlessmyjdownloadermandatory":false,"externinterfaceenabled":true,"externinterfacelocalhostonly":true,"jdanywhereapienabled":false}
 JSON
 cat > /var/lib/jdownloader/cfg/org.jdownloader.settings.GeneralSettings.json <<'JSON'
-{"defaultdownloadfolder":"/mnt/downloads","maxsimultanedownloads":3,"maxchunksperfile":2}
+{"defaultdownloadfolder":"/mnt/downloads/<jd:packagename>","maxsimultanedownloads":3,"maxchunksperfile":2}
 JSON
 cat > /var/lib/jdownloader/cfg/org.jdownloader.extensions.extraction.ExtractionExtension.json <<'JSON'
-{"enabled":true,"defaultdownloadfolder":"/mnt/downloads","customextractionpathenabled":false}
+{"enabled":true,"defaultdownloadfolder":"/mnt/downloads","customextractionpathenabled":false,"subpathenabled":false}
 JSON
 chown -R jdownloader:jdownloader /var/lib/jdownloader /opt/jdownloader
 curl -4 -fsSL --retry 3 https://installer.jdownloader.org/JDownloader.jar -o /opt/jdownloader/JDownloader.jar

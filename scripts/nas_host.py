@@ -17,6 +17,17 @@ MOUNT=Path('/mnt/nas-server-jdownloader')
 CANDIDATE=Path('/mnt/jdownloader-nas-candidate')
 STATE=BASE/'state.json'
 CREDENTIALS=BASE/'credentials'
+# A root-owned sidecar scopes an installer-created helper to one container.
+# Legacy installations without a sidecar retain their existing paths.
+SIDECAR=Path(__file__).with_suffix('.json')
+if SIDECAR.exists():
+    instance=json.loads(SIDECAR.read_text())
+    CT=str(int(instance['ct_id']))
+    BASE=Path(instance['base'])
+    MOUNT=Path(instance['mount'])
+    CANDIDATE=Path(instance['candidate'])
+    STATE=BASE/'state.json'
+    CREDENTIALS=BASE/'credentials'
 
 def run(args,timeout=45):
     result=subprocess.run(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,timeout=timeout)

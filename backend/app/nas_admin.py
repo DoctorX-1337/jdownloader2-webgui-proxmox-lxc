@@ -2,12 +2,12 @@ import asyncio
 import json
 from pathlib import Path
 from fastapi import HTTPException
-from .config import NAS_ADMIN_HOST,NAS_ADMIN_KEY,NAS_ADMIN_KNOWN_HOSTS
+from .config import NAS_ADMIN_HOST,NAS_ADMIN_USER,NAS_ADMIN_KEY,NAS_ADMIN_KNOWN_HOSTS
 
 async def rpc(payload):
     if not Path(NAS_ADMIN_KEY).is_file():
         raise HTTPException(503,'Die NAS-Verwaltung ist noch nicht eingerichtet. Bitte Proxmox-Anleitung prüfen.')
-    args=['ssh','-T','-i',NAS_ADMIN_KEY,'-o','BatchMode=yes','-o','ConnectTimeout=10','-o','StrictHostKeyChecking=yes','-o','UserKnownHostsFile='+NAS_ADMIN_KNOWN_HOSTS,'-o','IdentitiesOnly=yes','jd2mount@'+NAS_ADMIN_HOST]
+    args=['ssh','-T','-i',NAS_ADMIN_KEY,'-o','BatchMode=yes','-o','ConnectTimeout=10','-o','StrictHostKeyChecking=yes','-o','UserKnownHostsFile='+NAS_ADMIN_KNOWN_HOSTS,'-o','IdentitiesOnly=yes',NAS_ADMIN_USER+'@'+NAS_ADMIN_HOST]
     process=await asyncio.create_subprocess_exec(*args,stdin=asyncio.subprocess.PIPE,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.DEVNULL)
     try:
         output,_=await asyncio.wait_for(process.communicate(json.dumps(payload).encode()),timeout=85)

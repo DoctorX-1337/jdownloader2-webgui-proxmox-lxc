@@ -1,5 +1,11 @@
 # Proxmox-Einrichtung
 
+## Neue Installation
+
+Für einen selbstständigen Neuaufbau den [Schnellinstallationsassistenten](QUICK-INSTALL.md) verwenden. Er fragt alle Werte ab, erzeugt eigene Zugangsdaten und Schlüssel und richtet ausschließlich einen neuen LXC ein. `scripts/provision-host.sh` startet bei bereits lokal vorhandenen Projektquellen denselben Assistenten. Es werden keine Anmeldedaten aus anderen Containern übernommen.
+
+Die folgenden Abschnitte beschreiben die ursprüngliche manuelle Einrichtung als Referenz. Aktuelle Werte gehören in die lokale Konfiguration; die Schnellinstallation verwendet pro Container eigene Pfade und Benutzer.
+
 ## Konkrete Konfiguration
 
 Host `192.0.2.10`, Container `200`, IP `192.0.2.20/24`, Gateway/DNS `192.0.2.1`, Bridge `vmbr0`, Hostname `jdownloader2`, Suchdomäne `fritz.box`. Ressourcen: 4 Kerne, 4096 MB RAM, 2048 MB Swap, 24 GB auf `local-lvm`, Autostart und unprivilegiert.
@@ -58,7 +64,7 @@ pct set 200 --hookscript local:snippets/jdownloader-nas-hook.sh
 pct start 200
 ```
 
-`scripts/provision-host.sh` bildet die konkrete vorhandene Umgebung ab. Es lehnt eine belegte Container-ID oder antwortende Ziel-IP ab und übernimmt NAS-Credentials aus der vorhandenen autorisierten media-Konfiguration in Container 201. Für einen anderen Proxmox-Host diesen Übernahmeschritt an dessen NAS-Anmeldung anpassen.
+`scripts/provision-host.sh` startet den interaktiven Neuinstallationsassistenten. Er lehnt belegte IDs und Installationspfade ab und fragt die NAS-Anmeldung verdeckt ab.
 
 ## Anwendung installieren
 

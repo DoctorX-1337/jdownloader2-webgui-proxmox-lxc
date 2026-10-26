@@ -17,6 +17,11 @@ id jdweb >/dev/null 2>&1 || useradd --system --uid 1001 --gid jdownloader --home
 install -d -m 750 -o jdweb -g jdownloader /var/lib/jdownloader-web
 install -d -m 750 -o root -g jdownloader /etc/jdownloader-web
 if [ ! -f /etc/jdownloader-web/config.env ]; then install -m 640 -o root -g jdownloader "$PROJECT/config/config.env.example" /etc/jdownloader-web/config.env; fi
+chown root:jdownloader /etc/jdownloader-web/config.env
+chmod 640 /etc/jdownloader-web/config.env
+set -a
+. /etc/jdownloader-web/config.env
+set +a
 if [ ! -f /etc/jdownloader-web/browser-extension.token ]; then
   (umask 077; python3 -c 'import secrets; print(secrets.token_urlsafe(36))' > /etc/jdownloader-web/browser-extension.token)
 fi
@@ -24,6 +29,7 @@ chown jdweb:jdownloader /etc/jdownloader-web/browser-extension.token
 chmod 600 /etc/jdownloader-web/browser-extension.token
 install -d /usr/local/lib/jdownloader
 install -m 755 "$PROJECT/scripts/check-nas.py" /usr/local/lib/jdownloader/check-nas.py
+install -m 755 "$PROJECT/scripts/nas-controller.py" /usr/local/lib/jdownloader/nas-controller.py
 timeout 12 runuser -u jdownloader -- python3 /usr/local/lib/jdownloader/check-nas.py
 if [ ! -f /opt/jdownloader/JDownloader.jar ]; then
   cp "$PROJECT/scripts/check-nas.py" /tmp/check-nas.py
@@ -33,6 +39,8 @@ fi
 python3 -m venv "$PROJECT/venv"
 "$PROJECT/venv/bin/pip" install -q -r "$PROJECT/backend/requirements.txt"
 if [ "${1:-}" = --admin-hash-file ]; then
+  chown jdweb:jdownloader "$2"
+  chmod 600 "$2"
   (cd "$PROJECT/backend"; runuser -u jdweb -- "$PROJECT/venv/bin/python" seed_admin.py "$2")
   rm -f -- "$2"
 elif ! (cd "$PROJECT/backend"; "$PROJECT/venv/bin/python" -c 'from app.database import db,initialize; initialize(); c=db(); d=c.__enter__(); assert d.execute("SELECT COUNT(*) FROM users").fetchone()[0]>0'); then
@@ -61,8 +69,12 @@ systemctl restart jdownloader jdownloader-web nginx nftables
 systemctl start jdownloader-nas-watch.timer
 systemctl disable --now ssh.socket ssh.service postfix 2>/dev/null || true
 echo 'Installation abgeschlossen; Statusprüfung läuft.'
-for attempt in $(seq 1 30); do
-  if curl -fsS http://127.0.0.1/api/health | python3 -c 'import json,sys; h=json.load(sys.stdin); assert h["application"]==h["jdownloader"]==h["nas"]=="online" and h["nasWritable"]'; then echo 'Alle Dienste sind online.'; exit 0; fi
+for attempt in $(seq 1 300); do
+  if curl -fsS http://127.0.0.1/api/health | python3 -c 'import json,sys; h=json.load(sys.stdin); assert h["application"]==h["jdownloader"]==h["nas"]=="online" and h["nasWritable"]'; then
+    python3 "$PROJECT/scripts/configure-download-folders.py"
+    echo 'Alle Dienste sind online.'
+    exit 0
+  fi
   sleep 2
 done
 echo 'Healthcheck noch nicht vollständig grün. Siehe journalctl.'

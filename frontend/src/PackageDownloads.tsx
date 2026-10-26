@@ -2,7 +2,7 @@ import React,{useEffect,useMemo,useState} from 'react';
 import {Activity,Check,ChevronDown,Clock,FileArchive,Folder,Info,Pause,Search,WifiOff} from 'lucide-react';
 import './packages.css';
 import {DownloadProgress,type ProgressState} from './DownloadProgress';
-import {ExtractionStatus,type ExtractionInfo} from './ExtractionStatus';
+import {type ExtractionInfo} from './ExtractionStatus';
 
 export type DownloadPackage={uuid:string;name:string;bytesLoaded:number;bytesTotal:number;progress:number|null;speed:number;eta:number;fileCount:number;finishedCount:number;runningCount:number;unknownSizeCount:number;problemCount:number;finished:boolean;extraction?:ExtractionInfo|null;status:'running'|'queued'|'paused'|'finished'|'extracting'|'extraction_error'|'attention'};
 export type PackageFile={uuid:string;packageUUID?:string;name:string;bytesLoaded?:number;bytesTotal?:number;finished?:boolean;running?:boolean;enabled?:boolean;extractionStatus?:string;status?:string};
@@ -37,7 +37,7 @@ function PackageCard({package:p,files,stale}:{package:DownloadPackage;files:Pack
   <div className="package-card-heading"><span className="package-icon">{done?<Check size={23}/>:<FileArchive size={23}/>}</span><div className="package-title"><h3 title={p.name}>{p.name}</h3><span className={`package-status ${attention?'attention':''}`}>{p.status==='running'?<Activity size={12}/>:p.status==='paused'?<Pause size={12}/>:attention?<Info size={12}/>:done?<Check size={12}/>:null}{labels[p.status]}</span></div></div>
   <div className="package-meter"><DownloadProgress value={progress} state={p.finished?'finished':attention?'error':p.status as ProgressState} speed={p.speed} label={'Gesamtfortschritt: '+p.name} stale={stale}/></div>
   <div className="package-metrics"><span className="package-bytes">{size(p.bytesLoaded)} <span>/ {progress===null?'Gesamtgröße wird ermittelt':size(p.bytesTotal)}</span></span><span className="package-speed">{!stale&&p.speed>0?<><Activity size={13}/>{size(p.speed)}/s</>:null}</span></div>
-  {p.extraction&&<ExtractionStatus info={p.extraction} stale={stale}/>}
+  {p.extraction&&<p className="muted" style={{fontSize:12}}>Entpackstatus und Aktionen findest du im Tab „Entpacken“.</p>}
   <div className="package-card-footer"><span><Check size={13}/>{p.finishedCount} / {p.fileCount} Dateien fertig</span>{!stale&&p.eta>0&&<span><Clock size={13}/>Noch ca. {time(p.eta)}</span>}<button type="button" aria-expanded={open} aria-controls={'package-files-'+p.uuid} onClick={()=>setOpen(!open)}>{open?'Dateien ausblenden':'Dateien ansehen'}<ChevronDown size={15} className={open?'expanded':''}/></button></div>
   {open&&<div className="package-files" id={'package-files-'+p.uuid}>{files.length?files.map(file=>{const value=file.finished?100:file.bytesTotal&&file.bytesTotal>0?Math.min(100,(file.bytesLoaded||0)/file.bytesTotal*100):null;return <div className="package-file" key={file.uuid}><div><span title={file.name}>{file.name}</span><small>{file.extractionStatus==='RUNNING'?'Wird entpackt':file.finished?'Fertig':file.running?'Lädt herunter':file.enabled===false?'Pausiert':'Wartend'}</small></div><DownloadProgress value={value} state={file.finished?'finished':file.enabled===false?'paused':file.running?'running':'queued'} label={'Fortschritt: '+file.name} compact/><small>{value===null?size(file.bytesLoaded):percent(value)+' %'}</small></div>;}):<p className="muted">Dateidetails werden beim nächsten Abruf aktualisiert.</p>}</div>}
  </article>;

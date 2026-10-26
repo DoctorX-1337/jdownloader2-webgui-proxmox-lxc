@@ -21,12 +21,15 @@ from .jd import JDownloader, EngineUnavailable
 from .storage import storage, OFFLINE
 from . import dlc
 from .packages import summarize
+from .download_folders import destination as package_destination
+from .extractions import Extractions
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
 logger = logging.getLogger('jdweb')
 jd = JDownloader()
 current = {'nas':dict(OFFLINE), 'jdownloader':False, 'internet':False, 'version':None, 'updated':0}
 recent_cnl = {}
+extractions = Extractions()
 
 def setting(key, default):
     with db() as connection:
@@ -182,7 +185,7 @@ class NewDownload(BaseModel):
     links: str | list[str]
 
 def download_options():
-    return {'destinationFolder':config.DOWNLOAD_PATH,'autostart':setting('autostart',True),'autoExtract':setting('auto_extract',True),'assignJobID':True,'overwritePackagizerRules':True}
+    return {'destinationFolder':package_destination(config.DOWNLOAD_PATH),'autostart':setting('autostart',True),'autoExtract':setting('auto_extract',True),'assignJobID':True,'overwritePackagizerRules':True}
 
 async def submit_job(query, count):
     job = await jd.call('/linkgrabberv2/addLinks', {**download_options(), **query})
@@ -248,7 +251,7 @@ async def click_and_load(body:CnlRequest, allowed=Depends(extension_auth.require
     values=[]
     total=0
     for key, raw in body.fields.items():
-        if key not in permitted:
+        if key not in permitted or key=='dir':
             continue
         for value in raw if isinstance(raw,list) else [raw]:
             if not isinstance(value,str) or any(ord(char)<9 for char in value):
@@ -257,6 +260,7 @@ async def click_and_load(body:CnlRequest, allowed=Depends(extension_auth.require
             values.append((key,value))
     if not values or total>2*1024*1024:
         raise HTTPException(422,'Click\'n\'Load-Daten fehlen oder sind zu groß.')
+    values.append(('dir',package_destination(config.DOWNLOAD_PATH)))
     digest=hashlib.sha256(json.dumps([body.action,values],ensure_ascii=False).encode()).hexdigest()
     now=time.monotonic()
     for key,created in list(recent_cnl.items()):
@@ -304,6 +308,20 @@ class RemoveSelection(BaseModel):
     ids: list[str] = Field(min_length=1, max_length=2000)
     confirmed: Literal[True]
 
+class ConfirmExtraction(BaseModel):
+    confirmed: Literal[True]
+
+@app.get('/api/extractions')
+async def get_extractions(user=Depends(auth.session)):
+    rows = await extractions.snapshot(jd)
+    return {'archives':[{k:v for k,v in row.items() if k not in ('linkIds','controllerId')} for row in rows]}
+
+@app.post('/api/extractions/{archive_id}/{action}')
+async def extraction_action(archive_id:str, action:Literal['start','restart','cancel'], body:ConfirmExtraction, user=Depends(auth.session)):
+    if action != 'cancel':
+        await require_nas()
+    return await extractions.action(jd, config.DOWNLOAD_PATH, archive_id, action)
+
 async def remove_selection(body, endpoint):
     identifiers = list(dict.fromkeys(link_id(value) for value in body.ids))
     await jd.call(endpoint, identifiers, [])
@@ -350,7 +368,7 @@ async def start_grabbed(id:str,user=Depends(auth.session)):
         raise HTTPException(404,'Link nicht gefunden.')
     if link.get('availability')=='OFFLINE':
         raise HTTPException(422,'Dieser Link ist beim Anbieter nicht verfügbar.')
-    await jd.call('/linkgrabberv2/setDownloadDirectory',config.DOWNLOAD_PATH,[int(link['packageUUID'])])
+    await jd.call('/linkgrabberv2/setDownloadDirectory',package_destination(config.DOWNLOAD_PATH),[int(link['packageUUID'])])
     await jd.call('/linkgrabberv2/moveToDownloadlist',[ident],[])
     await jd.call('/downloadcontroller/pause',False)
     await jd.call('/downloadcontroller/start')

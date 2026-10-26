@@ -4,6 +4,27 @@ Lokales Downloadportal für eine native, headless betriebene JDownloader-2-Insta
 
 Alle IP-Adressen, NAS-Namen und Containerkennungen in dieser öffentlichen Fassung sind neutrale Beispielwerte. Vor der Installation müssen sie an die eigene Umgebung angepasst werden; produktive Infrastrukturangaben und Zugangsdaten werden nicht veröffentlicht. Die Beispiele verwenden das Dokumentationsnetz `192.0.2.0/24`.
 
+## Schnellinstallation auf Proxmox VE
+
+In der interaktiven root-Konsole des gewünschten Proxmox-VE-Knotens:
+
+```bash
+curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/DoctorX-1337/jdownloader2-webgui-proxmox-lxc/main/scripts/quick-install.sh -o jd2-quick-install.sh
+bash jd2-quick-install.sh
+```
+
+Der Assistent mit ASCII-Logo erstellt einen neuen unprivilegierten Ubuntu-LXC und richtet Netzwerk, SMB-NAS, JDownloader, WebGUI und einen eigenen Administratorzugang ein. Alle Werte werden abgefragt; Passwörter bleiben verdeckt. Bestehende Gäste werden nicht übernommen. Voraussetzungen, Versionsauswahl und Ablauf stehen in [Schnellinstallation](docs/QUICK-INSTALL.md).
+
+## Paketordner und Entpacken
+
+Neue Links, DLCs und Click’n’Load-Aufträge verwenden `/mnt/downloads/<jd:packagename>`: JDownloader ersetzt den Platzhalter durch den Paketnamen. Archive werden standardmäßig im Paketordner entpackt. Entpackpasswörter und Löschregeln bleiben bestehen.
+
+Der eigene Tab **Entpacken** zeigt Archive, vollständige und fehlende Teile, Zustände und den echten Entpackfortschritt. Violett steht für laufendes Entpacken, Gelb für die Warteschlange, Grün für Erfolg und Rot für Fehler. Die Anzeige aktualisiert sich alle drei Sekunden. **Entpacken**, **Neu entpacken** und **Abbrechen** erfordern eine Bestätigung und betreffen nur das ausgewählte Archiv. Neu entpacken verwendet einen frischen Unterordner `Entpackt-Neustart-…`; vorhandene Dateien werden erhalten. Unvollständige oder nicht eindeutig zuordenbare Archive können nicht manuell gestartet werden.
+
+Nach einem NAS-bedingten Schutzstopp nimmt der NAS-Wächter einen zuvor laufenden Downloadbetrieb wieder auf, sobald NAS und lokale Engine-API bereit sind. Absichtlich angehaltene oder pausierte Downloads bleiben angehalten.
+
+`scripts/configure-download-folders.py` aktiviert Paketordner in einer bestehenden Engine ohne Neustart. `scripts/organize-download-folders.py` erstellt zunächst nur einen Plan für fertige und noch nicht begonnene Pakete. Erst `--apply` ändert deren Verzeichnisse über JDownloaders eigene Verschiebefunktion. Laufende, teilweise geladene und gerade entpackte Pakete werden ausgelassen. Bereits entpackte Dateien werden nur anhand eindeutiger Archivmetadaten und passender Dateigröße zugeordnet; mehrdeutige Dateien bleiben liegen. Ein geschütztes Journal protokolliert die Änderungen. Für die optionale Bestandsortierung wird `7zip` im Container benötigt.
+
 ## Beispielkonfiguration
 
 | Eigenschaft | Wert |
@@ -60,7 +81,7 @@ Paket- und Einzeldateiansicht verwenden dieselbe Fortschrittskomponente: dunkler
 
 Animationen laufen nur bei aktiven Downloads mit gemessener Geschwindigkeit über null, sichtbarer Anzeige und sichtbarem Browser-Tab. Pausierte, wartende, fehlerhafte und abgeschlossene Downloads sowie veraltete Statusdaten bleiben statisch. Fertige Downloads werden grün, Pausen gedämpft blau, Fehler dezent rot und Entpackvorgänge gelb dargestellt. `prefers-reduced-motion` schaltet Bewegung und Partikel ab. Ein gemeinsamer `IntersectionObserver` pausiert unsichtbare Effekte; zusätzliche Animationsbibliotheken oder JavaScript-Animationsschleifen werden nicht benötigt. Die bisherigen Start-, Pause-, Fortsetzen- und Entfernen-Aktionen bleiben erhalten.
 
-Der Entpackstatus steht separat unter dem Downloadbalken. JDownloaders echte `PluginProgress`-Werte liefern Prozent, verarbeitete Bytes, Gesamtgröße und Restzeit des aktuellen Archivs. Ein Download kann deshalb bereits 100 % erreicht haben, während das Entpacken beispielsweise bei 58 % steht. Mehrteilige RAR-Dateien melden denselben Entpackvorgang mehrfach; die Anzeige zählt diese Bytes nicht mehrfach. Ohne native Messwerte erscheint keine erfundene Prozentzahl. Erfolg, Passwortfehler, Prüfsummenfehler und fehlende Archivteile haben eigene Hinweise.
+Der Entpackstatus steht im eigenen Tab **Entpacken**. JDownloaders echte `PluginProgress`-Werte liefern Prozent, verarbeitete Bytes, Gesamtgröße und Restzeit des aktuellen Archivs. Ein Download kann deshalb bereits 100 % erreicht haben, während das Entpacken beispielsweise bei 58 % steht. Mehrteilige RAR-Dateien melden denselben Entpackvorgang mehrfach; die Anzeige zählt diese Bytes nicht mehrfach. Ohne native Messwerte erscheint keine erfundene Prozentzahl. Erfolg, Passwortfehler, Prüfsummenfehler und fehlende Archivteile haben eigene Hinweise.
 
 ## Mehrere Einträge auswählen und entfernen
 

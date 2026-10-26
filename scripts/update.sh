@@ -15,6 +15,7 @@ npm ci --no-fund --no-audit
 npm run build
 chmod -R a+rX "$PROJECT/frontend/dist"
 install -m 755 "$PROJECT/scripts/check-nas.py" /usr/local/lib/jdownloader/check-nas.py
+install -m 755 "$PROJECT/scripts/nas-controller.py" /usr/local/lib/jdownloader/nas-controller.py
 install -m 755 "$PROJECT/scripts/nas-watch.sh" /usr/local/sbin/jdownloader-nas-watch
 install -m 755 "$PROJECT/scripts/backup.sh" /usr/local/sbin/backup-jdownloader-web
 install -m 644 "$PROJECT/nginx/jdownloader-web.conf" /etc/nginx/sites-available/jdownloader-web
@@ -50,3 +51,4 @@ while IFS= read -r address; do
   esac
 done <<< "$listeners"
 bash "$PROJECT/scripts/healthcheck.sh"
+python3 "$PROJECT/scripts/configure-download-folders.py"

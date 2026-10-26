@@ -48,7 +48,7 @@ class JDownloader:
         return links
 
     async def packages(self):
-        query = {key: True for key in ('bytesLoaded', 'bytesTotal', 'childCount', 'speed', 'eta', 'status', 'enabled', 'finished', 'running')}
+        query = {key: True for key in ('bytesLoaded', 'bytesTotal', 'childCount', 'speed', 'eta', 'status', 'enabled', 'finished', 'running', 'saveTo')}
         query.update(startAt=0, maxResults=-1)
         packages = await self.call('/downloadsV2/queryPackages', query)
         for package in packages:

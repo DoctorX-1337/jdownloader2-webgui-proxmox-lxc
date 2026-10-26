@@ -68,6 +68,18 @@ def test_download_package_snapshot_is_read_only_and_keeps_finished_files(client,
 def dlc_file(name='example.dlc', marker=b'A'):
     return {'name':name,'content':base64.b64encode(marker*128).decode('ascii')}
 
+def test_extraction_actions_require_session_csrf_and_explicit_confirmation(client):
+    browser,engine=client
+    endpoint='/api/extractions/example/restart'
+    assert browser.get('/api/extractions').status_code==401
+    assert browser.post(endpoint,json={'confirmed':True}).status_code==401
+    headers=signed_in(browser)
+    assert browser.post(endpoint,json={'confirmed':True}).status_code==403
+    for body in ({},{'confirmed':False}):
+        assert browser.post(endpoint,headers=headers,json=body).status_code==422
+    assert browser.post(endpoint,headers={**headers,'Origin':'https://attacker.example'},json={'confirmed':True}).status_code==403
+    assert not engine.calls
+
 def test_dlc_batch_uses_normal_download_settings_and_deduplicates(client):
     browser,engine=client
     headers=signed_in(browser)
@@ -82,7 +94,7 @@ def test_dlc_batch_uses_normal_download_settings_and_deduplicates(client):
     path,(query,)=engine.calls[0]
     assert path=='/linkgrabberv2/addLinks'
     assert query['dataURLs']==['data:application/dlc;base64,'+item['content'] for item in (first,second)]
-    assert query['destinationFolder']=='/mnt/downloads'
+    assert query['destinationFolder']=='/mnt/downloads/<jd:packagename>'
     assert query['autostart'] is False and query['autoExtract'] is False
     assert query['assignJobID'] and query['overwritePackagizerRules']
     assert first['content'] not in response.text
@@ -212,7 +224,7 @@ def test_multiple_links_are_deduplicated_and_real_engine_called(client):
     endpoint,params=engine.calls[0]
     assert endpoint=='/linkgrabberv2/addLinks'
     assert params[0]['links']=='https://example.org/a.zip\nhttps://example.org/b.zip'
-    assert params[0]['destinationFolder']=='/mnt/downloads'
+    assert params[0]['destinationFolder']=='/mnt/downloads/<jd:packagename>'
     assert params[0]['autostart'] is True
 
 def test_offline_nas_blocks_new_download_and_resume(client,monkeypatch):
